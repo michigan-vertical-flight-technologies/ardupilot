@@ -17,7 +17,6 @@
 #include <AP_HAL/AP_HAL.h>
 #include "ch.h"
 #include "hal.h"
-#include <AP_Common/Semaphore.h>
 
 #if HAL_USE_ADC == TRUE && !defined(HAL_DISABLE_ADC_DRIVER)
 
@@ -189,7 +188,7 @@ void AnalogIn::adccallback(ADCDriver *adcp)
 {
     const adcsample_t *buffer = samples;
 
-    cacheBufferInvalidate(buffer, sizeof(adcsample_t)*ADC_DMA_BUF_DEPTH*ADC_GRP1_NUM_CHANNELS);
+    stm32_cacheBufferInvalidate(buffer, sizeof(adcsample_t)*ADC_DMA_BUF_DEPTH*ADC_GRP1_NUM_CHANNELS);
     for (uint8_t i = 0; i < ADC_DMA_BUF_DEPTH; i++) {
         for (uint8_t j = 0; j < ADC_GRP1_NUM_CHANNELS; j++) { 
             sample_sum[j] += *buffer++;
@@ -299,6 +298,11 @@ void AnalogIn::_timer_tick(void)
             _board_voltage = buf_adc[i] * pin_config[i].scaling;
         }
 #endif
+#ifdef FMU_SERVORAIL_ADC_CHAN
+        if (pin_config[i].channel == FMU_SERVORAIL_ADC_CHAN) {
+           _servorail_voltage = buf_adc[i] * pin_config[i].scaling;
+        }
+#endif
     }
 
 #if HAL_WITH_IO_MCU
@@ -370,10 +374,19 @@ void AnalogIn::update_power_flags(void)
     if (!palReadLine(HAL_GPIO_PIN_VDD_SERVO_VALID)) {
         flags |= MAV_POWER_STATUS_SERVO_VALID;
     }
+#elif defined(HAL_GPIO_PIN_VDD_BRICK2_VALID)
+    // some boards defined BRICK2 instead of servo valid
+    if (!palReadLine(HAL_GPIO_PIN_VDD_BRICK2_VALID)) {
+        flags |= MAV_POWER_STATUS_SERVO_VALID;
+    }
 #endif
-    
+
 #ifdef HAL_GPIO_PIN_VBUS
 	if (palReadLine(HAL_GPIO_PIN_VBUS)) {
+        flags |= MAV_POWER_STATUS_USB_CONNECTED;
+    }
+#elif defined(HAL_GPIO_PIN_nVBUS)
+    if (!palReadLine(HAL_GPIO_PIN_nVBUS)) {
         flags |= MAV_POWER_STATUS_USB_CONNECTED;
     }
 #endif

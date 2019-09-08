@@ -34,7 +34,7 @@ MAV_COLLISION_ACTION AP_Avoidance_Copter::handle_avoidance(const AP_Avoidance::O
 
     // if landed and we will take some kind of action, just disarm
     if ((actual_action > MAV_COLLISION_ACTION_REPORT) && copter.should_disarm_on_failsafe()) {
-        copter.init_disarm_motors();
+        copter.arming.disarm();
         actual_action = MAV_COLLISION_ACTION_NONE;
     } else {
 
@@ -169,7 +169,7 @@ bool AP_Avoidance_Copter::handle_avoidance_vertical(const AP_Avoidance::Obstacle
     // decide on whether we should climb or descend
     bool should_climb = false;
     Location my_loc;
-    if (_ahrs.get_position(my_loc)) {
+    if (AP::ahrs().get_position(my_loc)) {
         should_climb = my_loc.alt > obstacle->_location.alt;
     }
 

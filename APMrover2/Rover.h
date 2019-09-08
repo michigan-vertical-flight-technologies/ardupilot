@@ -65,6 +65,7 @@
 #include <AP_WheelEncoder/AP_WheelEncoder.h>
 #include <AP_WheelEncoder/AP_WheelRateControl.h>
 #include <APM_Control/AR_AttitudeControl.h>
+#include <AR_WPNav/AR_WPNav.h>
 #include <AP_SmartRTL/AP_SmartRTL.h>
 #include <AP_Logger/AP_Logger.h>
 #include <Filter/AverageFilter.h>                   // Mode Filter from Filter library
@@ -76,6 +77,7 @@
 #include <AC_Fence/AC_Fence.h>
 #include <AP_Proximity/AP_Proximity.h>
 #include <AC_Avoidance/AC_Avoid.h>
+#include <AC_Avoidance/AP_OAPathPlanner.h>
 #include <AP_Follow/AP_Follow.h>
 #include <AP_OSD/AP_OSD.h>
 #include <AP_WindVane/AP_WindVane.h>
@@ -92,6 +94,7 @@
 #include "AP_MotorsUGV.h"
 #include "mode.h"
 #include "AP_Arming.h"
+#include "sailboat.h"
 // Configuration
 #include "config.h"
 #include "defines.h"
@@ -130,6 +133,8 @@ public:
 
     friend class RC_Channel_Rover;
     friend class RC_Channels_Rover;
+
+    friend class Sailboat;
 
     Rover(void);
 
@@ -174,7 +179,7 @@ private:
     AP_Baro barometer;
     Compass compass;
     AP_InertialSensor ins;
-    RangeFinder rangefinder{serial_manager};
+    RangeFinder rangefinder;
     AP_Button button;
 
     // flight modes convenience array
@@ -197,9 +202,6 @@ private:
     AP_Arming_Rover arming;
 
     AP_L1_Control L1_controller{ahrs, nullptr};
-
-    // selected navigation controller
-    AP_Navigation *nav_controller;
 
 #if AP_AHRS_NAVEKF_AVAILABLE
     OpticalFlow optflow;
@@ -228,14 +230,14 @@ private:
     // relay support
     AP_Relay relay;
 
-    AP_ServoRelayEvents ServoRelayEvents{relay};
+    AP_ServoRelayEvents ServoRelayEvents;
 
     // The rover's current location
     struct Location current_loc;
 
     // Camera
 #if CAMERA == ENABLED
-    AP_Camera camera{&relay, MASK_LOG_CAMERA, current_loc, ahrs};
+    AP_Camera camera{MASK_LOG_CAMERA, current_loc};
 #endif
 
     // Camera/Antenna mount tracking and stabilisation stuff
@@ -272,18 +274,6 @@ private:
     // true if we have a position estimate from AHRS
     bool have_position;
 
-    // obstacle detection information
-    struct {
-        // have we detected an obstacle?
-        uint8_t detected_count;
-        float turn_angle;
-        uint16_t rangefinder1_distance_cm;
-        uint16_t rangefinder2_distance_cm;
-
-        // time when we last detected an obstacle, in milliseconds
-        uint32_t detected_time_ms;
-    } obstacle;
-
     // range finder last update (used for DPTH logging)
     uint32_t rangefinder_last_reading_ms;
 
@@ -306,9 +296,6 @@ private:
 
     // flyforward timer
     uint32_t flyforward_start_ms;
-
-    // true if pivoting (set by use_pivot_steering)
-    bool pivot_steering_active;
 
     static const AP_Scheduler::Task scheduler_tasks[];
 
@@ -351,18 +338,6 @@ private:
         uint32_t log_count;
     } cruise_learn_t;
     cruise_learn_t cruise_learn;
-
-    // sailboat variables
-    enum Sailboat_Tack {
-        TACK_PORT,
-        TACK_STARBOARD
-    };
-    struct {
-        bool tacking;                   // true when sailboat is in the process of tacking to a new heading
-        float tack_heading_rad;         // target heading in radians while tacking in either acro or autonomous modes
-        uint32_t auto_tack_request_ms;  // system time user requested tack in autonomous modes
-        uint32_t auto_tack_start_ms;    // system time when tack was started in autonomous mode
-    } sailboat;
 
 private:
 
@@ -420,7 +395,6 @@ private:
     void send_wheel_encoder_distance(mavlink_channel_t chan);
 
     // Log.cpp
-    void Log_Write_Arm_Disarm();
     void Log_Write_Attitude();
     void Log_Write_Depth();
     void Log_Write_GuidedTarget(uint8_t target_type, const Vector3f& pos_target, const Vector3f& vel_target);
@@ -429,7 +403,6 @@ private:
     void Log_Write_Startup(uint8_t type);
     void Log_Write_Steering();
     void Log_Write_Throttle();
-    void Log_Write_Rangefinder();
     void Log_Write_RC(void);
     void Log_Write_Vehicle_Startup_Messages();
     void Log_Read(uint16_t log_num, uint16_t start_page, uint16_t end_page);
@@ -449,19 +422,7 @@ private:
     void radio_failsafe_check(uint16_t pwm);
     bool trim_radio();
 
-    // sailboat.cpp
-    void sailboat_update_mainsail(float desired_speed);
-    float sailboat_get_VMG() const;
-    void sailboat_handle_tack_request_acro();
-    float sailboat_get_tack_heading_rad() const;
-    void sailboat_handle_tack_request_auto();
-    void sailboat_clear_tack();
-    bool sailboat_tacking() const;
-    bool sailboat_use_indirect_route(float desired_heading_cd) const;
-    float sailboat_calc_heading(float desired_heading_cd);
-
     // sensors.cpp
-    void init_compass_location(void);
     void update_compass(void);
     void compass_save(void);
     void init_beacon();
@@ -474,8 +435,6 @@ private:
     void rpm_update(void);
 
     // Steering.cpp
-    bool use_pivot_steering_at_next_WP(float yaw_error_cd);
-    bool use_pivot_steering(float yaw_error_cd);
     void set_servos(void);
 
     // system.cpp
@@ -485,13 +444,9 @@ private:
     bool set_mode(Mode &new_mode, mode_reason_t reason);
     bool mavlink_set_mode(uint8_t mode);
     void startup_INS_ground(void);
-    void print_mode(AP_HAL::BetterStream *port, uint8_t mode);
     void notify_mode(const Mode *new_mode);
     uint8_t check_digital_pin(uint8_t pin);
     bool should_log(uint32_t mask);
-    void change_arm_state(void);
-    bool arm_motors(AP_Arming::Method method);
-    bool disarm_motors(void);
     bool is_boat() const;
 
     enum Failsafe_Action {
@@ -519,11 +474,10 @@ private:
 public:
     void mavlink_delay_cb();
     void failsafe_check();
-    void update_soft_armed();
     // Motor test
     void motor_test_output();
-    bool mavlink_motor_test_check(mavlink_channel_t chan, bool check_rc, uint8_t motor_seq, uint8_t throttle_type, int16_t throttle_value);
-    MAV_RESULT mavlink_motor_test_start(mavlink_channel_t chan, uint8_t motor_seq, uint8_t throttle_type, int16_t throttle_value, float timeout_sec);
+    bool mavlink_motor_test_check(const GCS_MAVLINK &gcs_chan, bool check_rc, AP_MotorsUGV::motor_test_order motor_instance, uint8_t throttle_type, int16_t throttle_value);
+    MAV_RESULT mavlink_motor_test_start(const GCS_MAVLINK &gcs_chan, AP_MotorsUGV::motor_test_order motor_instance, uint8_t throttle_type, int16_t throttle_value, float timeout_sec);
     void motor_test_stop();
 
     // frame type

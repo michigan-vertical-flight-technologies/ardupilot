@@ -42,7 +42,7 @@ public:
     // get altitude (in cm) in the desired frame
     // returns false on failure to get altitude in the desired frame which
     // can only happen if the original frame or desired frame is above-terrain
-    bool get_alt_cm(AltFrame desired_frame, int32_t &ret_alt_cm) const;
+    bool get_alt_cm(AltFrame desired_frame, int32_t &ret_alt_cm) const WARN_IF_UNUSED;
 
     // get altitude frame
     AltFrame get_alt_frame() const;
@@ -56,8 +56,8 @@ public:
     // return false on failure to get the vector which can only
     // happen if the EKF origin has not been set yet
     // x, y and z are in centimetres
-    bool get_vector_xy_from_origin_NE(Vector2f &vec_ne) const;
-    bool get_vector_from_origin_NEU(Vector3f &vec_neu) const;
+    bool get_vector_xy_from_origin_NE(Vector2f &vec_ne) const WARN_IF_UNUSED;
+    bool get_vector_from_origin_NEU(Vector3f &vec_neu) const WARN_IF_UNUSED;
 
     // return distance in meters between two locations
     float get_distance(const struct Location &loc2) const;
@@ -80,7 +80,7 @@ public:
     // longitude/latitude points to meters or centimeters
     float longitude_scale() const;
 
-    bool is_zero(void) const;
+    bool is_zero(void) const WARN_IF_UNUSED;
 
     void zero(void);
 
@@ -111,6 +111,8 @@ public:
       This will be more than 1 if we have passed point2
      */
     float line_path_proportion(const Location &point1, const Location &point2) const;
+
+    bool initialised() const { return (lat !=0 || lng != 0); }
 
 private:
     static AP_Terrain *_terrain;

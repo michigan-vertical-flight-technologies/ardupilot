@@ -2,7 +2,7 @@
 /// @brief	One size fits all header for MAVLink integration.
 #pragma once
 
-#include <AP_Param/AP_Param.h>
+#include <AP_HAL/AP_HAL_Boards.h>
 
 // we have separate helpers disabled to make it possible
 // to select MAVLink 1.0 in the arduino GUI build
@@ -29,6 +29,10 @@
  */
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wcast-align"
+
+#if defined(__GNUC__) && __GNUC__ >= 9
+#pragma GCC diagnostic ignored "-Waddress-of-packed-member"
+#endif
 
 #include "include/mavlink/v2.0/ardupilotmega/version.h"
 
@@ -71,9 +75,6 @@ uint16_t comm_get_txspace(mavlink_channel_t chan);
 
 #define MAVLINK_USE_CONVENIENCE_FUNCTIONS
 #include "include/mavlink/v2.0/ardupilotmega/mavlink.h"
-
-// return a MAVLink parameter type given a AP_Param type
-MAV_PARAM_TYPE mav_param_type(enum ap_var_type t);
 
 // lock and unlock a channel, for multi-threaded mavlink send
 void comm_send_lock(mavlink_channel_t chan);

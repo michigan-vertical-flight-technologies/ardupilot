@@ -5,12 +5,13 @@
 #include "UARTDriver.h"
 #include <sys/time.h>
 #include <fenv.h>
+#include <AP_BoardConfig/AP_BoardConfig.h>
 #if defined (__clang__)
 #include <stdlib.h>
 #else
 #include <malloc.h>
 #endif
-#include <AP_Common/Semaphore.h>
+#include <AP_RCProtocol/AP_RCProtocol.h>
 
 using namespace HALSITL;
 
@@ -138,6 +139,12 @@ void Scheduler::sitl_end_atomic() {
 
 void Scheduler::reboot(bool hold_in_bootloader)
 {
+    if (AP_BoardConfig::in_sensor_config_error()) {
+        // the _should_reboot flag set below is not checked by the
+        // sensor-config-error loop, so force the reboot here:
+        HAL_SITL::actually_reboot();
+        abort();
+    }
     _should_reboot = true;
 }
 
@@ -199,9 +206,12 @@ void Scheduler::_run_io_procs()
     hal.uartE->_timer_tick();
     hal.uartF->_timer_tick();
     hal.uartG->_timer_tick();
+    hal.uartH->_timer_tick();
     hal.storage->_timer_tick();
 
     check_thread_stacks();
+
+    AP::RC().update();
 }
 
 /*
@@ -282,9 +292,11 @@ bool Scheduler::thread_create(AP_HAL::MemberProc proc, const char *name, uint32_
     a->name = name;
     
     pthread_attr_init(&a->attr);
+#if !defined(__CYGWIN__) && !defined(__CYGWIN64__)
     if (pthread_attr_setstack(&a->attr, a->stack, alloc_stack) != 0) {
         AP_HAL::panic("Failed to set stack of size %u for thread %s", alloc_stack, name);
     }
+#endif
     if (pthread_create(&thread, &a->attr, thread_create_trampoline, a) != 0) {
         goto failed;
     }

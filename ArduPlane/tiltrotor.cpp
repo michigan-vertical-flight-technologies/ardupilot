@@ -44,9 +44,6 @@ void QuadPlane::tiltrotor_slew(float newtilt)
 
     // translate to 0..1000 range and output
     SRV_Channels::set_output_scaled(SRV_Channel::k_motor_tilt, 1000 * tilt.current_tilt);
-
-    // setup tilt compensation
-    motors->set_thrust_compensation_callback(FUNCTOR_BIND_MEMBER(&QuadPlane::tilt_compensate, void, float *, uint8_t));
 }
 
 /*
@@ -137,17 +134,16 @@ void QuadPlane::tiltrotor_continuous_update(void)
  */
 void QuadPlane::tiltrotor_binary_slew(bool forward)
 {
+    // The servo output is binary, not slew rate limited
     SRV_Channels::set_output_scaled(SRV_Channel::k_motor_tilt, forward?1000:0);
 
+    // rate limiting current_tilt has the effect of delaying throttle in tiltrotor_binary_update
     float max_change = tilt_max_change(!forward);
     if (forward) {
         tilt.current_tilt = constrain_float(tilt.current_tilt+max_change, 0, 1);
     } else {
         tilt.current_tilt = constrain_float(tilt.current_tilt-max_change, 0, 1);
     }
-
-    // setup tilt compensation
-    motors->set_thrust_compensation_callback(FUNCTOR_BIND_MEMBER(&QuadPlane::tilt_compensate, void, float *, uint8_t));
 }
 
 /*
@@ -370,4 +366,51 @@ void QuadPlane::tiltrotor_vectored_yaw(void)
         SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorLeft,  1000 * (base_output + yaw_out * yaw_range));
         SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorRight, 1000 * (base_output - yaw_out * yaw_range));
     }
+}
+
+/*
+  control bicopter tiltrotors
+ */
+void QuadPlane::tiltrotor_bicopter(void)
+{
+    if (tilt.tilt_type != TILT_TYPE_BICOPTER) {
+        return;
+    }
+
+    if (!in_vtol_mode() && tiltrotor_fully_fwd()) {
+        SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorLeft,  -SERVO_MAX);
+        SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorRight, -SERVO_MAX);
+        return;
+    }
+
+    float throttle = SRV_Channels::get_output_scaled(SRV_Channel::k_throttle);
+    if (assisted_flight) {
+        hold_stabilize(throttle * 0.01f);
+        motors_output(true);
+    } else {
+        motors_output(false);
+    }
+
+    // bicopter assumes that trim is up so we scale down so match
+    float tilt_left = SRV_Channels::get_output_scaled(SRV_Channel::k_tiltMotorLeft);
+    float tilt_right = SRV_Channels::get_output_scaled(SRV_Channel::k_tiltMotorRight);
+
+    if (is_negative(tilt_left)) {
+        tilt_left *= tilt.tilt_yaw_angle / 90.0f;
+    }
+    if (is_negative(tilt_right)) {
+        tilt_right *= tilt.tilt_yaw_angle / 90.0f;
+    }
+
+    // reduce authority of bicopter as motors are tilted forwards
+    const float scaling = cosf(tilt.current_tilt * M_PI_2);
+    tilt_left  *= scaling;
+    tilt_right *= scaling;
+
+    // add current tilt and constrain
+    tilt_left  = constrain_float(-(tilt.current_tilt * SERVO_MAX) + tilt_left,  -SERVO_MAX, SERVO_MAX);
+    tilt_right = constrain_float(-(tilt.current_tilt * SERVO_MAX) + tilt_right, -SERVO_MAX, SERVO_MAX);
+
+    SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorLeft,  tilt_left);
+    SRV_Channels::set_output_scaled(SRV_Channel::k_tiltMotorRight, tilt_right);
 }

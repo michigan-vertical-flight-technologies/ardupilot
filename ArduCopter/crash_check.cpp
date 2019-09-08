@@ -53,7 +53,7 @@ void Copter::crash_check()
         // send message to gcs
         gcs().send_text(MAV_SEVERITY_EMERGENCY,"Crash: Disarming");
         // disarm motors
-        init_disarm_motors();
+        copter.arming.disarm();
     }
 }
 
@@ -201,13 +201,16 @@ void Copter::parachute_check()
         // release parachute
         parachute_release();
     }
+
+    // pass sink rate to parachute library
+    parachute.set_sink_rate(-inertial_nav.get_velocity_z() * 0.01);
 }
 
 // parachute_release - trigger the release of the parachute, disarm the motors and notify the user
 void Copter::parachute_release()
 {
     // disarm motors
-    init_disarm_motors();
+    arming.disarm();
 
     // release parachute
     parachute.release();

@@ -59,7 +59,7 @@ int AP_HAL::Util::vsnprintf(char* str, size_t size, const char *format, va_list 
     print_vprintf(&buf, format, ap);
     // null terminate
     int ret = buf._offs;
-    buf.write(0);
+    str[ret] = '\0';
     return ret;
 }
 
@@ -91,3 +91,13 @@ void AP_HAL::Util::set_hw_rtc(uint64_t time_utc_usec)
 #endif
 }
 
+void AP_HAL::Util::set_soft_armed(const bool b)
+{
+    if (b != soft_armed) {
+        soft_armed = b;
+        last_armed_change_ms = AP_HAL::millis();
+        if (!was_watchdog_reset()) {
+            persistent_data.armed = b;
+        }
+    }
+}

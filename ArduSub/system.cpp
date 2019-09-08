@@ -56,7 +56,7 @@ void Sub::init_ardupilot()
     serial_manager.init();
 
     // setup first port early to allow BoardConfig to report errors
-    gcs().chan(0).setup_uart(serial_manager, AP_SerialManager::SerialProtocol_MAVLink, 0);
+    gcs().setup_console();
 
     // init cargo gripper
 #if GRIPPER_ENABLED == ENABLED
@@ -79,7 +79,7 @@ void Sub::init_ardupilot()
     hal.scheduler->register_delay_callback(mavlink_delay_cb_static, 5);
 
     // setup telem slots with serial ports
-    gcs().setup_uarts(serial_manager);
+    gcs().setup_uarts();
 
 #if LOGGING_ENABLED == ENABLED
     log_init();
@@ -118,11 +118,6 @@ void Sub::init_ardupilot()
     wp_nav.set_terrain(&terrain);
 #endif
 
-#if AVOIDANCE_ENABLED == ENABLED
-    wp_nav.set_avoidance(&avoid);
-    loiter_nav.set_avoidance(&avoid);
-#endif
-
     pos_control.set_dt(MAIN_LOOP_SECONDS);
 
     // init the optical flow sensor
@@ -132,7 +127,7 @@ void Sub::init_ardupilot()
 
 #if MOUNT == ENABLED
     // initialise camera mount
-    camera_mount.init(serial_manager);
+    camera_mount.init();
 #endif
 
 #ifdef USERHOOK_INIT
@@ -212,6 +207,10 @@ void Sub::init_ardupilot()
 
     // flag that initialisation has completed
     ap.initialised = true;
+
+#if AP_PARAM_KEY_DUMP
+    AP_Param::show_all(hal.console, true);
+#endif
 }
 
 

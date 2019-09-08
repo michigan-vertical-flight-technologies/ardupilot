@@ -31,6 +31,7 @@
 #include "DiscoLED.h"
 #include "Led_Sysfs.h"
 #include "UAVCAN_RGB_LED.h"
+#include "SITL_SFML_LED.h"
 #include <stdio.h>
 #include "AP_BoardLED2.h"
 
@@ -110,15 +111,15 @@ const AP_Param::GroupInfo AP_Notify::var_info[] = {
 
     // @Param: LED_OVERRIDE
     // @DisplayName: Specifies colour source for the RGBLed
-    // @Description: Specifies the source for the colours and brightness for the LED.  OutbackChallenge conforms to the MedicalExpress (https://uavchallenge.org/medical-express/) rules, essentially "Green" is disarmed (safe-to-approach), "Red" is armed (not safe-to-approach).
-    // @Values: 0:Standard,1:MAVLink,2:OutbackChallenge
+    // @Description: Specifies the source for the colours and brightness for the LED.  OutbackChallenge conforms to the MedicalExpress (https://uavchallenge.org/medical-express/) rules, essentially "Green" is disarmed (safe-to-approach), "Red" is armed (not safe-to-approach). Traffic light is a simplified color set, red when armed, yellow when the safety switch is not surpressing outputs (but disarmed), and green when outputs are surpressed and disarmed, the LED will blink faster if disarmed and failing arming checks.
+    // @Values: 0:Standard,1:MAVLink,2:OutbackChallenge,3:TrafficLight
     // @User: Advanced
     AP_GROUPINFO("LED_OVERRIDE", 2, AP_Notify, _rgb_led_override, 0),
 
     // @Param: DISPLAY_TYPE
     // @DisplayName: Type of on-board I2C display
     // @Description: This sets up the type of on-board I2C display. Disabled by default.
-    // @Values: 0:Disable,1:ssd1306,2:sh1106
+    // @Values: 0:Disable,1:ssd1306,2:sh1106,10:SITL
     // @User: Advanced
     AP_GROUPINFO("DISPLAY_TYPE", 3, AP_Notify, _display_type, 0),
 
@@ -298,6 +299,9 @@ void AP_Notify::add_backends(void)
 
 #elif CONFIG_HAL_BOARD == HAL_BOARD_SITL
     ADD_BACKEND(new AP_ToneAlarm());
+#ifdef WITH_SITL_RGBLED
+    ADD_BACKEND(new SITL_SFML_LED());
+#endif
 #endif // Noise makers
 
 }
@@ -327,7 +331,7 @@ void AP_Notify::update(void)
 }
 
 // handle a LED_CONTROL message
-void AP_Notify::handle_led_control(mavlink_message_t *msg)
+void AP_Notify::handle_led_control(const mavlink_message_t &msg)
 {
     for (uint8_t i = 0; i < _num_devices; i++) {
         if (_devices[i] != nullptr) {
@@ -337,7 +341,7 @@ void AP_Notify::handle_led_control(mavlink_message_t *msg)
 }
 
 // handle a PLAY_TUNE message
-void AP_Notify::handle_play_tune(mavlink_message_t *msg)
+void AP_Notify::handle_play_tune(const mavlink_message_t &msg)
 {
     for (uint8_t i = 0; i < _num_devices; i++) {
         if (_devices[i] != nullptr) {

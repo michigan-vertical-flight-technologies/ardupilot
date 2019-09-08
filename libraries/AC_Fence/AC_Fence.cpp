@@ -261,7 +261,6 @@ bool AC_Fence::polygon_fence_is_breached()
     // check consistency of number of points
     if (_boundary_num_points != _total) {
         // Fence is currently not completely loaded.  Can't breach it?!
-        _boundary_loaded = false;
         load_polygon_from_eeprom();
         return false;
     }
@@ -419,31 +418,21 @@ void AC_Fence::record_breach(uint8_t fence_type)
 /// clear_breach - update breach bitmask, time and count
 void AC_Fence::clear_breach(uint8_t fence_type)
 {
-    // return immediately if this fence type was not breached
-    if ((_breached_fences & fence_type) == 0) {
-        return;
-    }
-
-    // update bitmask
     _breached_fences &= ~fence_type;
 }
 
-/// get_breach_distance - returns distance in meters outside of the given fence
+/// get_breach_distance - returns maximum distance in meters outside
+/// of the given fences.  fence_type is a bitmask here.
 float AC_Fence::get_breach_distance(uint8_t fence_type) const
 {
-    switch (fence_type) {
-        case AC_FENCE_TYPE_ALT_MAX:
-            return _alt_max_breach_distance;
-            break;
-        case AC_FENCE_TYPE_CIRCLE:
-            return _circle_breach_distance;
-            break;
-        case AC_FENCE_TYPE_ALT_MAX | AC_FENCE_TYPE_CIRCLE:
-            return MAX(_alt_max_breach_distance,_circle_breach_distance);
+    float max = 0.0f;
+    if (fence_type & AC_FENCE_TYPE_ALT_MAX) {
+        max = MAX(_alt_max_breach_distance, max);
     }
-
-    // we don't recognise the fence type so just return 0
-    return 0;
+    if (fence_type & AC_FENCE_TYPE_CIRCLE) {
+        max = MAX(_circle_breach_distance, max);
+    }
+    return max;
 }
 
 /// manual_recovery_start - caller indicates that pilot is re-taking manual control so fence should be disabled for 10 seconds
@@ -460,13 +449,22 @@ void AC_Fence::manual_recovery_start()
 }
 
 /// returns pointer to array of polygon points and num_points is filled in with the total number
-Vector2f* AC_Fence::get_polygon_points(uint16_t& num_points) const
+Vector2f* AC_Fence::get_boundary_points(uint16_t& num_points) const
 {
     // return array minus the first point which holds the return location
-    num_points = (_boundary_num_points <= 1) ? 0 : _boundary_num_points - 1;
-    if ((_boundary == nullptr) || (num_points == 0)) {
+    if (_boundary == nullptr) {
         return nullptr;
     }
+    if (!_boundary_valid) {
+        return nullptr;
+    }
+    // minus one for return point, minus one for closing point
+    // (_boundary_valid is not true unless we have a closing point AND
+    // we have a minumum number of points)
+    if (_boundary_num_points < 2) {
+        return nullptr;
+    }
+    num_points = _boundary_num_points - 2;
     return &_boundary[1];
 }
 
@@ -477,18 +475,13 @@ bool AC_Fence::boundary_breached(const Vector2f& location, uint16_t num_points, 
 }
 
 /// handler for polygon fence messages with GCS
-void AC_Fence::handle_msg(GCS_MAVLINK &link, mavlink_message_t* msg)
+void AC_Fence::handle_msg(GCS_MAVLINK &link, const mavlink_message_t &msg)
 {
-    // exit immediately if null message
-    if (msg == nullptr) {
-        return;
-    }
-
-    switch (msg->msgid) {
+    switch (msg.msgid) {
         // receive a fence point from GCS and store in EEPROM
         case MAVLINK_MSG_ID_FENCE_POINT: {
             mavlink_fence_point_t packet;
-            mavlink_msg_fence_point_decode(msg, &packet);
+            mavlink_msg_fence_point_decode(&msg, &packet);
             if (!check_latlng(packet.lat,packet.lng)) {
                 link.send_text(MAV_SEVERITY_WARNING, "Invalid fence point, lat or lng too large");
             } else {
@@ -508,11 +501,11 @@ void AC_Fence::handle_msg(GCS_MAVLINK &link, mavlink_message_t* msg)
         // send a fence point to GCS
         case MAVLINK_MSG_ID_FENCE_FETCH_POINT: {
             mavlink_fence_fetch_point_t packet;
-            mavlink_msg_fence_fetch_point_decode(msg, &packet);
+            mavlink_msg_fence_fetch_point_decode(&msg, &packet);
             // attempt to retrieve from eeprom
             Vector2l point;
             if (_poly_loader.load_point_from_eeprom(packet.idx, point)) {
-                mavlink_msg_fence_point_send(link.get_chan(), msg->sysid, msg->compid, packet.idx, _total, point.x*1.0e-7f, point.y*1.0e-7f);
+                mavlink_msg_fence_point_send(link.get_chan(), msg.sysid, msg.compid, packet.idx, _total, point.x*1.0e-7f, point.y*1.0e-7f);
             } else {
                 link.send_text(MAV_SEVERITY_WARNING, "Bad fence point");
             }
@@ -526,13 +519,8 @@ void AC_Fence::handle_msg(GCS_MAVLINK &link, mavlink_message_t* msg)
 }
 
 /// load polygon points stored in eeprom into boundary array and perform validation
-bool AC_Fence::load_polygon_from_eeprom(bool force_reload)
+bool AC_Fence::load_polygon_from_eeprom()
 {
-    // exit immediately if already loaded
-    if (_boundary_loaded && !force_reload) {
-        return true;
-    }
-
     // check if we need to create array
     if (!_boundary_create_attempted) {
         _boundary = (Vector2f *)_poly_loader.create_point_array(sizeof(Vector2f));
@@ -570,7 +558,7 @@ bool AC_Fence::load_polygon_from_eeprom(bool force_reload)
         _boundary[index] = ekf_origin.get_distance_NE(temp_loc) * 100.0f;
     }
     _boundary_num_points = _total;
-    _boundary_loaded = true;
+    _boundary_update_ms = AP_HAL::millis();
 
     // update validity of polygon
     _boundary_valid = _poly_loader.boundary_valid(_boundary_num_points, _boundary);

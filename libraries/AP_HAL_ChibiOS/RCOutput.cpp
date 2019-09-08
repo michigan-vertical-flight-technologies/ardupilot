@@ -990,7 +990,7 @@ void RCOutput::send_pulses_DMAR(pwm_group &group, uint32_t buffer_length)
       up with this great method.
      */
     dmaStreamSetPeripheral(group.dma, &(group.pwm_drv->tim->DMAR));
-    cacheBufferFlush(group.dma_buffer, buffer_length);
+    stm32_cacheBufferFlush(group.dma_buffer, buffer_length);
     dmaStreamSetMemory0(group.dma, group.dma_buffer);
     dmaStreamSetTransactionSize(group.dma, buffer_length/sizeof(uint32_t));
     dmaStreamSetFIFO(group.dma, STM32_DMA_FCR_DMDIS | STM32_DMA_FCR_FTH_FULL);
@@ -1389,10 +1389,8 @@ AP_HAL::Util::safety_state RCOutput::_safety_switch_state(void)
         safety_state = iomcu.get_safety_switch_state();
     }
 #endif
-    if (safety_state == AP_HAL::Util::SAFETY_ARMED) {
-        stm32_set_backup_safety_state(false);
-    } else if (safety_state == AP_HAL::Util::SAFETY_DISARMED) {
-        stm32_set_backup_safety_state(true);
+    if (!hal.util->was_watchdog_reset()) {
+        hal.util->persistent_data.safety_state = safety_state;
     }
     return safety_state;
 }

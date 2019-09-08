@@ -222,7 +222,7 @@ private:
 
     AP_InertialSensor ins;
 
-    RangeFinder rangefinder{serial_manager};
+    RangeFinder rangefinder;
 
     AP_Vehicle::FixedWing::Rangefinder_State rangefinder_state;
 
@@ -287,11 +287,11 @@ private:
     AP_Relay relay;
 
     // handle servo and relay events
-    AP_ServoRelayEvents ServoRelayEvents{relay};
+    AP_ServoRelayEvents ServoRelayEvents;
 
     // Camera
 #if CAMERA == ENABLED
-    AP_Camera camera{&relay, MASK_LOG_CAMERA, current_loc, ahrs};
+    AP_Camera camera{MASK_LOG_CAMERA, current_loc};
 #endif
 
 #if OPTFLOW == ENABLED
@@ -349,6 +349,9 @@ private:
     // This is used to enable the inverted flight feature
     bool inverted_flight;
 
+    // last time we ran roll/pitch stabilization
+    uint32_t last_stabilize_ms;
+    
     // Failsafe
     struct {
         // Used to track if the value on channel 3 (throtttle) has fallen below the failsafe threshold
@@ -670,11 +673,11 @@ private:
     AP_ADSB adsb;
 
     // avoidance of adsb enabled vehicles (normally manned vheicles)
-    AP_Avoidance_Plane avoidance_adsb{ahrs, adsb};
+    AP_Avoidance_Plane avoidance_adsb{adsb};
 
     // Outback Challenge Failsafe Support
 #if ADVANCED_FAILSAFE == ENABLED
-    AP_AdvancedFailsafe_Plane afs {mission, gps};
+    AP_AdvancedFailsafe_Plane afs {mission};
 #endif
 
     /*
@@ -829,7 +832,6 @@ private:
     void Log_Write_Nav_Tuning();
     void Log_Write_Status();
     void Log_Write_Sonar();
-    void Log_Arm_Disarm();
     void Log_Write_RC(void);
     void Log_Write_Vehicle_Startup_Messages();
     void Log_Write_AOA_SSA();
@@ -861,6 +863,7 @@ private:
     float lookahead_adjustment(void);
     float rangefinder_correction(void);
     void rangefinder_height_update(void);
+    void rangefinder_terrain_correction(float &height);
     void set_next_WP(const struct Location &loc);
     void set_guided_WP(void);
     void update_home();
@@ -907,6 +910,7 @@ private:
     bool geofence_check_minalt(void);
     bool geofence_check_maxalt(void);
     void geofence_check(bool altitude_check_only);
+    bool geofence_prearm_check(void);
     bool geofence_stickmixing(void);
     void geofence_send_status(mavlink_channel_t chan);
     bool geofence_breached(void);
@@ -933,6 +937,7 @@ private:
     int16_t rudder_input(void);
     void control_failsafe();
     bool trim_radio();
+    bool rc_throttle_value_ok(void) const;
     bool rc_failsafe_active(void) const;
     void read_rangefinder(void);
     void read_airspeed(void);
@@ -947,9 +952,6 @@ private:
     void startup_INS_ground(void);
     bool should_log(uint32_t mask);
     int8_t throttle_percentage(void);
-    void change_arm_state(void);
-    bool disarm_motors(void);
-    bool arm_motors(AP_Arming::Method method, bool do_arming_checks=true);
     bool auto_takeoff_check(void);
     void takeoff_calc_roll(void);
     void takeoff_calc_pitch(void);
@@ -1003,7 +1005,6 @@ private:
     bool stick_mixing_enabled(void);
     void stabilize_roll(float speed_scaler);
     void stabilize_pitch(float speed_scaler);
-    static void stick_mix_channel(RC_Channel *channel, int16_t &servo_out);
     void stabilize_stick_mixing_direct();
     void stabilize_stick_mixing_fbw();
     void stabilize_yaw(float speed_scaler);
@@ -1053,7 +1054,6 @@ private:
     void publish_osd_info();
 #endif
     void accel_cal_update(void);
-    void update_soft_armed();
 #if SOARING_ENABLED == ENABLED
     void update_soaring();
 #endif
@@ -1074,11 +1074,13 @@ private:
         Failsafe_Action_Land      = 2,
         Failsafe_Action_Terminate = 3,
         Failsafe_Action_QLand     = 4,
+        Failsafe_Action_Parachute = 5
     };
 
     // list of priorities, highest priority first
     static constexpr int8_t _failsafe_priorities[] = {
                                                       Failsafe_Action_Terminate,
+                                                      Failsafe_Action_Parachute,
                                                       Failsafe_Action_QLand,
                                                       Failsafe_Action_Land,
                                                       Failsafe_Action_RTL,

@@ -52,8 +52,7 @@ void Copter::init_ardupilot()
     serial_manager.init();
 
     // setup first port early to allow BoardConfig to report errors
-    gcs().chan(0).setup_uart(serial_manager, AP_SerialManager::SerialProtocol_MAVLink, 0);
-
+    gcs().setup_console();
 
     // Register mavlink_delay_cb, which will run anytime you have
     // more than 5ms remaining in your call to hal.scheduler->delay
@@ -85,7 +84,7 @@ void Copter::init_ardupilot()
     barometer.init();
 
     // setup telem slots with serial ports
-    gcs().setup_uarts(serial_manager);
+    gcs().setup_uarts();
 
 #if OSD_ENABLED == ENABLED
     osd.init();
@@ -108,14 +107,17 @@ void Copter::init_ardupilot()
 
     init_rc_in();               // sets up rc channels from radio
 
-    // default frame class to match firmware if possible
-    set_default_frame_class();
-
     // allocate the motors class
     allocate_motors();
 
+    // initialise rc channels including setting mode
+    rc().init();
+
     // sets up motors and output to escs
     init_rc_out();
+
+    // check if we should enter esc calibration mode
+    esc_calibration_startup_check();
 
     // motors initialised so parameters can be sent
     ap.initialised_params = true;
@@ -127,11 +129,6 @@ void Copter::init_ardupilot()
      *  the RC library being initialised.
      */
     hal.scheduler->register_timer_failsafe(failsafe_check_static, 1000);
-
-#if BEACON_ENABLED == ENABLED
-    // give AHRS the range beacon sensor
-    ahrs.set_beacon(&g2.beacon);
-#endif
 
     // Do GPS init
     gps.set_log_gps_bit(MASK_LOG_GPS);
@@ -151,9 +148,8 @@ void Copter::init_ardupilot()
     wp_nav->set_terrain(&terrain);
 #endif
 
-#if AC_AVOID_ENABLED == ENABLED
-    wp_nav->set_avoidance(&avoid);
-    loiter_nav->set_avoidance(&avoid);
+#if AC_OAPATHPLANNER_ENABLED == ENABLED
+    g2.oa.init();
 #endif
 
     attitude_control->parameter_sanity_check();
@@ -164,7 +160,7 @@ void Copter::init_ardupilot()
 
 #if MOUNT == ENABLED
     // initialise camera mount
-    camera_mount.init(serial_manager);
+    camera_mount.init();
 #endif
 
 #if PRECISION_LANDING == ENABLED
@@ -228,9 +224,6 @@ void Copter::init_ardupilot()
     // initialise AP_Logger library
     logger.setVehicle_Startup_Writer(FUNCTOR_BIND(&copter, &Copter::Log_Write_Vehicle_Startup_Messages, void));
 
-    // initialise rc channels including setting mode
-    rc().init();
-
     startup_INS_ground();
 
 #ifdef ENABLE_SCRIPTING
@@ -265,6 +258,10 @@ void Copter::init_ardupilot()
 
     // flag that initialisation has completed
     ap.initialised = true;
+
+#if AP_PARAM_KEY_DUMP
+    AP_Param::show_all(hal.console, true);
+#endif
 }
 
 
@@ -285,7 +282,7 @@ void Copter::startup_INS_ground()
 }
 
 // position_ok - returns true if the horizontal absolute position is ok and home position is set
-bool Copter::position_ok()
+bool Copter::position_ok() const
 {
     // return false if ekf failsafe has triggered
     if (failsafe.ekf) {
@@ -297,7 +294,7 @@ bool Copter::position_ok()
 }
 
 // ekf_position_ok - returns true if the ekf claims it's horizontal absolute position estimate is ok and home position is set
-bool Copter::ekf_position_ok()
+bool Copter::ekf_position_ok() const
 {
     if (!ahrs.have_inertial_nav()) {
         // do not allow navigation with dcm position
@@ -317,7 +314,7 @@ bool Copter::ekf_position_ok()
 }
 
 // optflow_position_ok - returns true if optical flow based position estimate is ok
-bool Copter::optflow_position_ok()
+bool Copter::optflow_position_ok() const
 {
 #if OPTFLOW != ENABLED && VISUAL_ODOMETRY_ENABLED != ENABLED
     return false;
@@ -403,16 +400,6 @@ bool Copter::should_log(uint32_t mask)
 #else
     return false;
 #endif
-}
-
-// default frame_class to match firmware if possible
-void Copter::set_default_frame_class()
-{
-    if (FRAME_CONFIG == HELI_FRAME &&
-        g2.frame_class.get() != AP_Motors::MOTOR_FRAME_HELI_DUAL &&
-        g2.frame_class.get() != AP_Motors::MOTOR_FRAME_HELI_QUAD) {
-        g2.frame_class.set(AP_Motors::MOTOR_FRAME_HELI);
-    }
 }
 
 // return MAV_TYPE corresponding to frame class
@@ -566,7 +553,11 @@ void Copter::allocate_motors(void)
     }
     AP_Param::load_object_from_eeprom(pos_control, pos_control->var_info);
 
+#if AC_OAPATHPLANNER_ENABLED == ENABLED
+    wp_nav = new AC_WPNav_OA(inertial_nav, *ahrs_view, *pos_control, *attitude_control);
+#else
     wp_nav = new AC_WPNav(inertial_nav, *ahrs_view, *pos_control, *attitude_control);
+#endif
     if (wp_nav == nullptr) {
         AP_HAL::panic("Unable to allocate WPNav");
     }
@@ -600,7 +591,7 @@ void Copter::allocate_motors(void)
         attitude_control->get_rate_yaw_pid().kI().set_default(0.015);
         break;
     case AP_Motors::MOTOR_FRAME_TRI:
-        attitude_control->get_rate_yaw_pid().filt_hz().set_default(100);
+        attitude_control->get_rate_yaw_pid().filt_D_hz().set_default(100);
         break;
     default:
         break;

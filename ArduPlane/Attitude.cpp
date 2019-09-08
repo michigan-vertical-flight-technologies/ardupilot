@@ -28,6 +28,12 @@ float Plane::get_speed_scaler(void)
             if (aspeed < threshold) {
                 float new_scaler = linear_interpolate(0, g.scaling_speed / threshold, aspeed, 0, threshold);
                 speed_scaler = MIN(speed_scaler, new_scaler);
+
+                // we also decay the integrator to prevent an integrator from before
+                // we were at low speed persistint at high speed
+                rollController.decay_I();
+                pitchController.decay_I();
+                yawController.decay_I();
             }
         }
     } else if (hal.util->get_soft_armed()) {
@@ -122,24 +128,6 @@ void Plane::stabilize_pitch(float speed_scaler)
 }
 
 /*
-  perform stick mixing on one channel
-  This type of stick mixing reduces the influence of the auto
-  controller as it increases the influence of the users stick input,
-  allowing the user full deflection if needed
- */
-void Plane::stick_mix_channel(RC_Channel *channel, int16_t &servo_out)
-{
-    float ch_inf;
-        
-    ch_inf = (float)channel->get_radio_in() - (float)channel->get_radio_trim();
-    ch_inf = fabsf(ch_inf);
-    ch_inf = MIN(ch_inf, 400.0f);
-    ch_inf = ((400.0f - ch_inf) / 400.0f);
-    servo_out *= ch_inf;
-    servo_out += channel->get_control_in();
-}
-
-/*
   this gives the user control of the aircraft in stabilization modes
  */
 void Plane::stabilize_stick_mixing_direct()
@@ -161,11 +149,11 @@ void Plane::stabilize_stick_mixing_direct()
         return;
     }
     int16_t aileron = SRV_Channels::get_output_scaled(SRV_Channel::k_aileron);
-    stick_mix_channel(channel_roll, aileron);
+    aileron = channel_roll->stick_mixing(aileron);
     SRV_Channels::set_output_scaled(SRV_Channel::k_aileron, aileron);
 
     int16_t elevator = SRV_Channels::get_output_scaled(SRV_Channel::k_elevator);
-    stick_mix_channel(channel_pitch, elevator);
+    elevator = channel_pitch->stick_mixing(elevator);
     SRV_Channels::set_output_scaled(SRV_Channel::k_elevator, elevator);
 }
 
@@ -375,7 +363,9 @@ void Plane::stabilize_acro(float speed_scaler)
 void Plane::stabilize()
 {
     if (control_mode == &mode_manual) {
-        // nothing to do
+        // reset steering controls
+        steer_state.locked_course = false;
+        steer_state.locked_course_err = 0;
         return;
     }
     float speed_scaler = get_speed_scaler();
@@ -388,7 +378,21 @@ void Plane::stabilize()
         nav_pitch_cd = constrain_float((quadplane.tailsitter.transition_angle+5)*100, 5500, 8500),
         nav_roll_cd = 0;
     }
-    
+
+    uint32_t now = AP_HAL::millis();
+    if (now - last_stabilize_ms > 2000) {
+        // if we haven't run the rate controllers for 2 seconds then
+        // reset the integrators
+        rollController.reset_I();
+        pitchController.reset_I();
+        yawController.reset_I();
+
+        // and reset steering controls
+        steer_state.locked_course = false;
+        steer_state.locked_course_err = 0;
+    }
+    last_stabilize_ms = now;
+
     if (control_mode == &mode_training) {
         stabilize_training(speed_scaler);
     } else if (control_mode == &mode_acro) {
@@ -502,7 +506,7 @@ void Plane::calc_nav_yaw_course(void)
     int32_t bearing_error_cd = nav_controller->bearing_error_cd();
     steering_control.steering = steerController.get_steering_out_angle_error(bearing_error_cd);
     if (stick_mixing_enabled()) {
-        stick_mix_channel(channel_rudder, steering_control.steering);
+        steering_control.steering = channel_rudder->stick_mixing(steering_control.steering);
     }
     steering_control.steering = constrain_int16(steering_control.steering, -4500, 4500);
 }

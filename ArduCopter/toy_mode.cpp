@@ -410,7 +410,7 @@ void ToyMode::update()
         const uint8_t disarm_limit = copter.flightmode->has_manual_throttle()?TOY_LAND_MANUAL_DISARM_COUNT:TOY_LAND_DISARM_COUNT;
         if (throttle_low_counter >= disarm_limit) {
             gcs().send_text(MAV_SEVERITY_INFO, "Tmode: throttle disarm");
-            copter.init_disarm_motors();
+            copter.arming.disarm();
         }
     } else {
         throttle_low_counter = 0;
@@ -424,7 +424,7 @@ void ToyMode::update()
         if (throttle_high_counter >= TOY_LAND_ARM_COUNT) {
             gcs().send_text(MAV_SEVERITY_INFO, "Tmode: throttle arm");
             arm_check_compass();
-            if (!copter.init_arm_motors(AP_Arming::Method::MAVLINK) && (flags & FLAG_UPGRADE_LOITER) && copter.control_mode == LOITER) {
+            if (!copter.arming.arm(AP_Arming::Method::MAVLINK) && (flags & FLAG_UPGRADE_LOITER) && copter.control_mode == LOITER) {
                 /*
                   support auto-switching to ALT_HOLD, then upgrade to LOITER once GPS available
                  */
@@ -433,7 +433,7 @@ void ToyMode::update()
 #if AC_FENCE == ENABLED
                     copter.fence.enable(false);
 #endif
-                    if (!copter.init_arm_motors(AP_Arming::Method::MAVLINK)) {
+                    if (!copter.arming.arm(AP_Arming::Method::MAVLINK)) {
                         // go back to LOITER
                         gcs().send_text(MAV_SEVERITY_ERROR, "Tmode: ALT_HOLD arm failed");
                         set_and_remember_mode(LOITER, MODE_REASON_TMODE);
@@ -569,7 +569,7 @@ void ToyMode::update()
     case ACTION_DISARM:
         if (copter.motors->armed()) {
             gcs().send_text(MAV_SEVERITY_ERROR, "Tmode: Force disarm");
-            copter.init_disarm_motors();
+            copter.arming.disarm();
         }
         break;
 
@@ -625,7 +625,7 @@ void ToyMode::update()
 #if AC_FENCE == ENABLED
             copter.fence.enable(false);
 #endif
-            if (copter.init_arm_motors(AP_Arming::Method::MAVLINK)) {
+            if (copter.arming.arm(AP_Arming::Method::MAVLINK)) {
                 load_test.running = true;
                 gcs().send_text(MAV_SEVERITY_INFO, "Tmode: load_test on");
             } else {
@@ -803,7 +803,7 @@ void ToyMode::action_arm(void)
         // we want GPS and checks are passing, arm and enable fence
         copter.fence.enable(true);
 #endif
-        copter.init_arm_motors(AP_Arming::Method::RUDDER);
+        copter.arming.arm(AP_Arming::Method::RUDDER);
         if (!copter.motors->armed()) {
             AP_Notify::events.arming_failed = true;
             gcs().send_text(MAV_SEVERITY_ERROR, "Tmode: GPS arming failed");
@@ -819,7 +819,7 @@ void ToyMode::action_arm(void)
         // non-GPS mode
         copter.fence.enable(false);
 #endif
-        copter.init_arm_motors(AP_Arming::Method::RUDDER);
+        copter.arming.arm(AP_Arming::Method::RUDDER);
         if (!copter.motors->armed()) {
             AP_Notify::events.arming_failed = true;
             gcs().send_text(MAV_SEVERITY_ERROR, "Tmode: non-GPS arming failed");
@@ -930,13 +930,13 @@ void ToyMode::blink_update(void)
 }
 
 // handle a mavlink message
-void ToyMode::handle_message(mavlink_message_t *msg)
+void ToyMode::handle_message(const mavlink_message_t &msg)
 {
-    if (msg->msgid != MAVLINK_MSG_ID_NAMED_VALUE_INT) {
+    if (msg.msgid != MAVLINK_MSG_ID_NAMED_VALUE_INT) {
         return;
     }
     mavlink_named_value_int_t m;
-    mavlink_msg_named_value_int_decode(msg, &m);
+    mavlink_msg_named_value_int_decode(&msg, &m);
     if (strncmp(m.name, "BLINKR", 10) == 0) {
         red_blink_pattern = (uint16_t)m.value;
         red_blink_count = m.value >> 16;

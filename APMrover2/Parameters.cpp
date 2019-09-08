@@ -72,7 +72,7 @@ const AP_Param::Info Rover::var_info[] = {
     // @DisplayName: Auto mode trigger pin
     // @Description: pin number to use to enable the throttle in auto mode. If set to -1 then don't use a trigger, otherwise this is a pin number which if held low in auto mode will enable the motor to run. If the switch is released while in AUTO then the motor will stop again. This can be used in combination with INITIAL_MODE to give a 'press button to start' rover with no receiver.
     // @Values: -1:Disabled,0:APM TriggerPin0,1:APM TriggerPin1,2:APM TriggerPin2,3:APM TriggerPin3,4:APM TriggerPin4,5:APM TriggerPin5,6:APM TriggerPin6,7:APM TriggerPin7,8:APM TriggerPin8,50:Pixhawk TriggerPin50,51:Pixhawk TriggerPin51,52:Pixhawk TriggerPin52,53:Pixhawk TriggerPin53,54:Pixhawk TriggerPin54,55:Pixhawk TriggerPin55
-    // @User: standard
+    // @User: Standard
     GSCALAR(auto_trigger_pin,        "AUTO_TRIGGER_PIN", -1),
 
     // @Param: AUTO_KICKSTART
@@ -81,7 +81,7 @@ const AP_Param::Info Rover::var_info[] = {
     // @Units: m/s/s
     // @Range: 0 20
     // @Increment: 0.1
-    // @User: standard
+    // @User: Standard
     GSCALAR(auto_kickstart,          "AUTO_KICKSTART", 0.0f),
 
     // @Param: CRUISE_SPEED
@@ -93,14 +93,6 @@ const AP_Param::Info Rover::var_info[] = {
     // @User: Standard
     GSCALAR(speed_cruise,        "CRUISE_SPEED",    CRUISE_SPEED),
 
-    // @Param: PIVOT_TURN_ANGLE
-    // @DisplayName: Pivot turn angle
-    // @Description: Navigation angle threshold in degrees to switch to pivot steering when SKID_STEER_OUT is 1. This allows you to setup a skid steering rover to turn on the spot in auto mode when the angle it needs to turn it greater than this angle. An angle of zero means to disable pivot turning. Note that you will probably also want to set a low value for WP_RADIUS to get neat turns.
-    // @Units: deg
-    // @Range: 0 360
-    // @Increment: 1
-    // @User: Standard
-    GSCALAR(pivot_turn_angle,   "PIVOT_TURN_ANGLE",  60),
 
     // @Param: CRUISE_THROTTLE
     // @DisplayName: Base throttle percentage in auto
@@ -177,41 +169,6 @@ const AP_Param::Info Rover::var_info[] = {
     // @User: Advanced
     GSCALAR(fs_ekf_thresh, "FS_EKF_THRESH", 0.8f),
 
-    // @Param: RNGFND_TRIGGR_CM
-    // @DisplayName: Object avoidance trigger distance
-    // @Description: The distance from an obstacle in centimeters at which the rangefinder triggers a turn to avoid the obstacle
-    // @Units: cm
-    // @Range: 0 1000
-    // @Increment: 1
-    // @User: Standard
-    GSCALAR(rangefinder_trigger_cm,   "RNGFND_TRIGGR_CM",    100),
-
-    // @Param: RNGFND_TURN_ANGL
-    // @DisplayName: Object avoidance turn aggressiveness and direction
-    // @Description: The aggressiveness and direction of turn to avoid an obstacle.  Large positive or negative values (i.e. -450 or 450) cause turns up to the vehicle's maximum lateral acceleration (TURN_MAX_G) while values near zero cause gentle turns. Positive means to turn right, negative means turn left.
-    // @Units: deg
-    // @Range: -450 450
-    // @Increment: 1
-    // @User: Standard
-    GSCALAR(rangefinder_turn_angle,   "RNGFND_TURN_ANGL",    45),
-
-    // @Param: RNGFND_TURN_TIME
-    // @DisplayName: Object avoidance turn time
-    // @Description: The amount of time in seconds to apply the RNGFND_TURN_ANGL after detecting an obstacle.
-    // @Units: s
-    // @Range: 0 100
-    // @Increment: 0.1
-    // @User: Standard
-    GSCALAR(rangefinder_turn_time,    "RNGFND_TURN_TIME",     1.0f),
-
-    // @Param: RNGFND_DEBOUNCE
-    // @DisplayName: Object avoidance rangefinder debounce count
-    // @Description: The number of 50Hz rangefinder hits needed to trigger an obstacle avoidance event. If you get a lot of false rangefinder events then raise this number, but if you make it too large then it will cause lag in detecting obstacles, which could cause you go hit the obstacle.
-    // @Range: 1 100
-    // @Increment: 1
-    // @User: Standard
-    GSCALAR(rangefinder_debounce,   "RNGFND_DEBOUNCE",    2),
-
     // @Param: MODE_CH
     // @DisplayName: Mode channel
     // @Description: RC Channel to use for driving mode control
@@ -260,24 +217,6 @@ const AP_Param::Info Rover::var_info[] = {
     // @User: Standard
     GSCALAR(mode6,           "MODE6",         Mode::Number::MANUAL),
 
-    // @Param: WP_RADIUS
-    // @DisplayName: Waypoint radius
-    // @Description: The distance in meters from a waypoint when we consider the waypoint has been reached. This determines when the rover will turn along the next waypoint path.
-    // @Units: m
-    // @Range: 0 1000
-    // @Increment: 0.1
-    // @User: Standard
-    GSCALAR(waypoint_radius,        "WP_RADIUS",        2.0f),
-
-    // @Param: WP_OVERSHOOT
-    // @DisplayName: Waypoint overshoot maximum
-    // @Description: Waypoint overshoot maximum in meters.  The vehicle will attempt to stay within this many meters of the track as it completes one waypoint and moves to the next.
-    // @Units: m
-    // @Range: 0 10
-    // @Increment: 0.1
-    // @User: Standard
-    GSCALAR(waypoint_overshoot,     "WP_OVERSHOOT", 2.0f),
-
     // @Param: TURN_MAX_G
     // @DisplayName: Turning maximum G force
     // @Description: The maximum turning acceleration (in units of gravities) that the rover can handle while remaining stable. The navigation code will keep the lateral acceleration below this level to avoid rolling over or slipping the wheels in turns
@@ -313,19 +252,19 @@ const AP_Param::Info Rover::var_info[] = {
 
     // @Group: SR0_
     // @Path: GCS_Mavlink.cpp
-    GOBJECTN(_gcs._chan[0], gcs0,        "SR0_",     GCS_MAVLINK),
+    GOBJECTN(_gcs.chan_parameters[0], gcs0,        "SR0_",     GCS_MAVLINK_Parameters),
 
     // @Group: SR1_
     // @Path: GCS_Mavlink.cpp
-    GOBJECTN(_gcs._chan[1],  gcs1,       "SR1_",     GCS_MAVLINK),
+    GOBJECTN(_gcs.chan_parameters[1],  gcs1,       "SR1_",     GCS_MAVLINK_Parameters),
 
     // @Group: SR2_
     // @Path: GCS_Mavlink.cpp
-    GOBJECTN(_gcs._chan[2],  gcs2,       "SR2_",     GCS_MAVLINK),
+    GOBJECTN(_gcs.chan_parameters[2],  gcs2,       "SR2_",     GCS_MAVLINK_Parameters),
 
     // @Group: SR3_
     // @Path: GCS_Mavlink.cpp
-    GOBJECTN(_gcs._chan[3],  gcs3,       "SR3_",     GCS_MAVLINK),
+    GOBJECTN(_gcs.chan_parameters[3],  gcs3,       "SR3_",     GCS_MAVLINK_Parameters),
 
     // @Group: SERIAL
     // @Path: ../libraries/AP_SerialManager/AP_SerialManager.cpp
@@ -507,14 +446,7 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @Path: ../libraries/AP_SmartRTL/AP_SmartRTL.cpp
     AP_SUBGROUPINFO(smart_rtl, "SRTL_", 13, ParametersG2, AP_SmartRTL),
 
-    // @Param: WP_SPEED
-    // @DisplayName: Waypoint speed default
-    // @Description: Waypoint speed default.  If zero use CRUISE_SPEED.
-    // @Units: m/s
-    // @Range: 0 100
-    // @Increment: 0.1
-    // @User: Standard
-    AP_GROUPINFO("WP_SPEED", 14, ParametersG2, wp_speed, 0.0f),
+    // 14 was WP_SPEED and should not be re-used
 
     // @Param: RTL_SPEED
     // @DisplayName: Return-to-Launch speed default
@@ -544,14 +476,7 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @Path: ../libraries/AC_Avoidance/AC_Avoid.cpp
     AP_SUBGROUPINFO(avoid, "AVOID_", 19, ParametersG2, AC_Avoid),
 
-    // @Param: PIVOT_TURN_RATE
-    // @DisplayName: Pivot turn rate
-    // @Description: Desired pivot turn rate in deg/s.
-    // @Units: deg/s
-    // @Range: 0 360
-    // @Increment: 1
-    // @User: Standard
-    AP_GROUPINFO("PIVOT_TURN_RATE", 20, ParametersG2, pivot_turn_rate, 90),
+    // 20 was PIVOT_TURN_RATE and should not be re-used
 
     // @Param: BAL_PITCH_MAX
     // @DisplayName: BalanceBot Maximum Pitch
@@ -625,50 +550,7 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @Path: ../libraries/AP_WindVane/AP_WindVane.cpp
     AP_SUBGROUPINFO(windvane, "WNDVN_", 31, ParametersG2, AP_WindVane),
 
-    // @Param: SAIL_ANGLE_MIN
-    // @DisplayName: Sail min angle
-    // @Description: Mainsheet tight, angle between centerline and boom
-    // @Units: deg
-    // @Range: 0 90
-    // @Increment: 1
-    // @User: Standard
-    AP_GROUPINFO("SAIL_ANGLE_MIN", 32, ParametersG2, sail_angle_min, 0),
-
-    // @Param: SAIL_ANGLE_MAX
-    // @DisplayName: Sail max angle
-    // @Description: Mainsheet loose, angle between centerline and boom
-    // @Units: deg
-    // @Range: 0 90
-    // @Increment: 1
-    // @User: Standard
-    AP_GROUPINFO("SAIL_ANGLE_MAX", 33, ParametersG2, sail_angle_max, 90),
-
-    // @Param: SAIL_ANGLE_IDEAL
-    // @DisplayName: Sail ideal angle
-    // @Description: Ideal angle between sail and apparent wind
-    // @Units: deg
-    // @Range: 0 90
-    // @Increment: 1
-    // @User: Standard
-    AP_GROUPINFO("SAIL_ANGLE_IDEAL", 34, ParametersG2, sail_angle_ideal, 25),
-
-    // @Param: SAIL_HEEL_MAX
-    // @DisplayName: Sailing maximum heel angle
-    // @Description: When in auto sail trim modes the heel will be limited to this value using PID control
-    // @Units: deg
-    // @Range: 0 90
-    // @Increment: 1
-    // @User: Standard
-    AP_GROUPINFO("SAIL_HEEL_MAX", 35, ParametersG2, sail_heel_angle_max, 15),
-
-    // @Param: SAIL_NO_GO_ANGLE
-    // @DisplayName: Sailing no go zone angle
-    // @Description: The typical closest angle to the wind the vehicle will sail at. the vehicle will sail at this angle when going upwind
-    // @Units: deg
-    // @Range: 0 90
-    // @Increment: 1
-    // @User: Standard
-    AP_GROUPINFO("SAIL_NO_GO_ANGLE", 36, ParametersG2, sail_no_go, 45),
+    // 32 to 36 were old sailboat params
 
     // @Group: ARSPD
     // @Path: ../libraries/AP_Airspeed/AP_Airspeed.cpp
@@ -697,9 +579,29 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     AP_GROUPINFO("BAL_PITCH_TRIM", 40, ParametersG2, bal_pitch_trim, 0),
 
 #ifdef ENABLE_SCRIPTING
-    // Scripting is intentionally not showing up in the parameter docs until it is a more standard feature
+    // @Group: SCR_
+    // @Path: ../libraries/AP_Scripting/AP_Scripting.cpp
     AP_SUBGROUPINFO(scripting, "SCR_", 41, ParametersG2, AP_Scripting),
 #endif
+
+    // @Param: STICK_MIXING
+    // @DisplayName: Stick Mixing
+    // @Description: When enabled, this adds steering user stick input in auto modes, allowing the user to have some degree of control without changing modes.
+    // @Values: 0:Disabled,1:Enabled
+    // @User: Advanced
+    AP_GROUPINFO("STICK_MIXING", 42, ParametersG2, stick_mixing, 0),
+
+    // @Group: WP_
+    // @Path: ../libraries/AR_WPNav/AR_WPNav.cpp
+    AP_SUBGROUPINFO(wp_nav, "WP_", 43, ParametersG2, AR_WPNav),
+
+    // @Group: SAIL_
+    // @Path: sailboat.cpp
+    AP_SUBGROUPINFO(sailboat, "SAIL_", 44, ParametersG2, Sailboat),
+
+    // @Group: OA_
+    // @Path: ../libraries/AC_Avoidance/AP_OAPathPlanner.cpp
+    AP_SUBGROUPINFO(oa, "OA_", 45, ParametersG2, AP_OAPathPlanner),
 
     AP_GROUPEND
 };
@@ -718,10 +620,26 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
 // @Description: RC Channel to use for auxiliary functions including saving waypoints
 // @User: Advanced
 
+// @Param: PIVOT_TURN_ANGLE
+// @DisplayName: Pivot turn angle
+// @Description: Navigation angle threshold in degrees to switch to pivot steering when SKID_STEER_OUT is 1. This allows you to setup a skid steering rover to turn on the spot in auto mode when the angle it needs to turn it greater than this angle. An angle of zero means to disable pivot turning. Note that you will probably also want to set a low value for WP_RADIUS to get neat turns.
+// @Units: deg
+// @Range: 0 360
+// @Increment: 1
+// @User: Standard
+
+// @Param: PIVOT_TURN_RATE
+// @DisplayName: Pivot turn rate
+// @Description: Desired pivot turn rate in deg/s.
+// @Units: deg/s
+// @Range: 0 360
+// @Increment: 1
+// @User: Standard
+
 ParametersG2::ParametersG2(void)
     :
 #if ADVANCED_FAILSAFE == ENABLED
-    afs(rover.mission, rover.gps),
+    afs(rover.mode_auto.mission),
 #endif
     beacon(rover.serial_manager),
     motors(rover.ServoRelayEvents),
@@ -729,10 +647,12 @@ ParametersG2::ParametersG2(void)
     attitude_control(rover.ahrs),
     smart_rtl(),
     proximity(rover.serial_manager),
-    avoid(rover.ahrs, fence, rover.g2.proximity, &rover.g2.beacon),
+    avoid(),
     follow(),
     windvane(),
-    airspeed()
+    airspeed(),
+    wp_nav(attitude_control, rover.L1_controller),
+    sailboat()
 {
     AP_Param::setup_object_defaults(this, var_info);
 }
@@ -763,8 +683,18 @@ const AP_Param::ConversionInfo conversion_table[] = {
     { Parameters::k_param_serial2_baud,       0,      AP_PARAM_INT16, "SERIAL2_BAUD" },
     { Parameters::k_param_throttle_min_old,   0,      AP_PARAM_INT8,  "MOT_THR_MIN" },
     { Parameters::k_param_throttle_max_old,   0,      AP_PARAM_INT8,  "MOT_THR_MAX" },
-
     { Parameters::k_param_compass_enabled_deprecated,       0,      AP_PARAM_INT8, "COMPASS_ENABLE" },
+    { Parameters::k_param_pivot_turn_angle_old,   0,  AP_PARAM_INT16,  "WP_PIVOT_ANGLE" },
+    { Parameters::k_param_waypoint_radius_old,    0,  AP_PARAM_FLOAT,  "WP_RADIUS" },
+    { Parameters::k_param_waypoint_overshoot_old, 0,  AP_PARAM_FLOAT,  "WP_OVERSHOOT" },
+    { Parameters::k_param_g2,                20,      AP_PARAM_INT16,  "WP_PIVOT_RATE" },
+
+    { Parameters::k_param_g2,                32,      AP_PARAM_FLOAT,  "SAIL_ANGLE_MIN" },
+    { Parameters::k_param_g2,                33,      AP_PARAM_FLOAT,  "SAIL_ANGLE_MAX" },
+    { Parameters::k_param_g2,                34,      AP_PARAM_FLOAT,  "SAIL_ANGLE_IDEAL" },
+    { Parameters::k_param_g2,                35,      AP_PARAM_FLOAT,  "SAIL_HEEL_MAX" },
+    { Parameters::k_param_g2,                36,      AP_PARAM_FLOAT,  "SAIL_NO_GO_ANGLE" },
+    { Parameters::k_param_arming,             2,     AP_PARAM_INT16,  "ARMING_CHECK" },
 };
 
 void Rover::load_parameters(void)
@@ -800,14 +730,6 @@ void Rover::load_parameters(void)
         g2.crash_angle.set_default(30);
     }
 
-    // sailboat defaults
-    if (g2.motors.has_sail()) {
-        g2.crash_angle.set_default(0);
-        g2.loit_type.set_default(1);
-        g2.loit_radius.set_default(5);
-        g.waypoint_overshoot.set_default(10);
-    }
-
     const uint8_t old_rc_keys[14] = { Parameters::k_param_rc_1_old,  Parameters::k_param_rc_2_old,
                                       Parameters::k_param_rc_3_old,  Parameters::k_param_rc_4_old,
                                       Parameters::k_param_rc_5_old,  Parameters::k_param_rc_6_old,
@@ -831,6 +753,34 @@ void Rover::load_parameters(void)
         if (ch7_opt_old_val < ARRAY_SIZE(ch7_opt_map)) {
             AP_Param::set_default_by_name(ch7_option_info.new_name, ch7_opt_map[ch7_opt_old_val]);
         }
+    }
+
+    // set AR_WPNav's WP_SPEED to be old WP_SPEED (if set) or CRUISE_SPEED (if set)
+    const AP_Param::ConversionInfo wp_speed_old_info = { Parameters::k_param_g2, 14, AP_PARAM_FLOAT, "WP_SPEED" };
+    const AP_Param::ConversionInfo cruise_speed_info = { Parameters::k_param_speed_cruise, 0, AP_PARAM_FLOAT, "WP_SPEED" };
+    AP_Float wp_speed_old;
+    if (AP_Param::find_old_parameter(&wp_speed_old_info, &wp_speed_old)) {
+        // old WP_SPEED parameter value was set so copy to new WP_SPEED
+        AP_Param::convert_old_parameter(&wp_speed_old_info, 1.0f);
+    } else {
+        // copy CRUISE_SPEED to new WP_SPEED
+        AP_Param::convert_old_parameter(&cruise_speed_info, 1.0f);
+    }
+
+    // attitude control FF and FILT parameter changes for Rover-3.6
+    const AP_Param::ConversionInfo ff_and_filt_conversion_info[] = {
+        { Parameters::k_param_g2, 24650, AP_PARAM_FLOAT, "ATC_STR_RAT_FLTE" },
+        { Parameters::k_param_g2, 28746, AP_PARAM_FLOAT, "ATC_STR_RAT_FF" },
+        { Parameters::k_param_g2, 24714, AP_PARAM_FLOAT, "ATC_SPEED_FLTE" },
+        { Parameters::k_param_g2, 28810, AP_PARAM_FLOAT, "ATC_SPEED_FF" },
+        { Parameters::k_param_g2, 25226, AP_PARAM_FLOAT, "ATC_BAL_FLTE" },
+        { Parameters::k_param_g2, 29322, AP_PARAM_FLOAT, "ATC_BAL_FF" },
+        { Parameters::k_param_g2, 25354, AP_PARAM_FLOAT, "ATC_SAIL_FLTE" },
+        { Parameters::k_param_g2, 29450, AP_PARAM_FLOAT, "ATC_SAIL_FF" },
+    };
+    uint8_t filt_table_size = ARRAY_SIZE(ff_and_filt_conversion_info);
+    for (uint8_t i=0; i<filt_table_size; i++) {
+        AP_Param::convert_old_parameters(&ff_and_filt_conversion_info[i], 1.0f);
     }
 
     // configure safety switch to allow stopping the motors while armed

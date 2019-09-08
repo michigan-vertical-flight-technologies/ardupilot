@@ -6,6 +6,8 @@ class GCS_MAVLINK_Rover : public GCS_MAVLINK
 {
 public:
 
+    using GCS_MAVLINK::GCS_MAVLINK;
+
 protected:
 
     uint32_t telem_delay() const override;
@@ -21,6 +23,8 @@ protected:
     MAV_RESULT handle_command_int_packet(const mavlink_command_int_t &packet) override;
     MAV_RESULT handle_command_long_packet(const mavlink_command_long_t &packet) override;
 
+    void send_position_target_global_int() override;
+
     virtual bool in_hil_mode() const override;
 
     bool persist_streamrates() const override { return true; }
@@ -34,13 +38,13 @@ protected:
 
 private:
 
-    void handleMessage(mavlink_message_t * msg) override;
+    void handleMessage(const mavlink_message_t &msg) override;
     bool handle_guided_request(AP_Mission::Mission_Command &cmd) override;
     void handle_change_alt_request(AP_Mission::Mission_Command &cmd) override;
-    void handle_rc_channels_override(const mavlink_message_t *msg) override;
+    void handle_rc_channels_override(const mavlink_message_t &msg) override;
     bool try_send_message(enum ap_message id) override;
 
-    void packetReceived(const mavlink_status_t &status, mavlink_message_t &msg) override;
+    void packetReceived(const mavlink_status_t &status, const mavlink_message_t &msg) override;
 
     MAV_MODE base_mode() const override;
     MAV_STATE system_status() const override;

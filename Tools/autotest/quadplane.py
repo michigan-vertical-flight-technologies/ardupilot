@@ -7,9 +7,12 @@ import pexpect
 from pymavlink import mavutil
 
 from common import AutoTest
+from common import AutoTestTimeoutException
+
 from pysim import util
 from pysim import vehicleinfo
 import operator
+
 
 # get location of scripts
 testdir = os.path.dirname(os.path.realpath(__file__))
@@ -20,6 +23,25 @@ WIND = "0,180,0.2"  # speed,direction,variance
 
 
 class AutoTestQuadPlane(AutoTest):
+    @staticmethod
+    def get_not_armable_mode_list():
+        return []
+
+    @staticmethod
+    def get_not_disarmed_settable_modes_list():
+        return []
+
+    @staticmethod
+    def get_no_position_not_settable_modes_list():
+        return []
+
+    @staticmethod
+    def get_position_armable_modes_list():
+        return []
+
+    @staticmethod
+    def get_normal_armable_modes_list():
+        return []
 
     def default_frame(self):
         return "quadplane"
@@ -91,7 +113,7 @@ class AutoTestQuadPlane(AutoTest):
         """Fly a mission from a file."""
         self.progress("Flying mission %s" % filename)
         self.load_mission(filename)
-        self.mavproxy.send('fence load %s\n' % fence)
+        self.load_fence(fence)
         self.mavproxy.send('wp list\n')
         self.mavproxy.expect('Requesting [0-9]+ waypoints')
         self.wait_ready_to_arm()
@@ -133,12 +155,17 @@ class AutoTestQuadPlane(AutoTest):
                 continue
             self.progress("STATUSTEXT (%u<%u): %s" % (now, deadline, m.text))
             if "AutoTune: Success" in m.text:
-                self.progress("AUTOTUNE OK (%u seconds)" % (now - tstart))
-                # near enough for now:
-                self.change_mode("QLAND")
-                self.mavproxy.expect("AutoTune: Saved gains for Roll Pitch Yaw")
-                self.mav.motors_disarmed_wait()
-                return
+                break
+        self.progress("AUTOTUNE OK (%u seconds)" % (now - tstart))
+        self.set_rc(3, 1200)
+        self.wait_altitude(-5, 1, relative=True, timeout=30)
+        while self.get_sim_time_cached() < deadline:
+            self.mavproxy.send('disarm\n')
+            try:
+                self.wait_text("AutoTune: Saved gains for Roll Pitch Yaw", timeout=0.5)
+            except AutoTestTimeoutException as e:
+                continue
+            break
         self.mav.motors_disarmed_wait()
 
     def test_pid_tuning(self):
@@ -165,8 +192,6 @@ class AutoTestQuadPlane(AutoTest):
         ret = super(AutoTestQuadPlane, self).tests()
         ret.extend([
             ("TestMotorMask", "Test output_motor_mask", self.test_motor_mask),
-
-            ("QAutoTune", "Fly QAUTOTUNE mode", self.fly_qautotune),
 
             ("ParameterChecks",
              "Test Arming Parameter Checks",

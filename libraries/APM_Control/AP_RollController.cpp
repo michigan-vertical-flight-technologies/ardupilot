@@ -105,14 +105,6 @@ int32_t AP_RollController::_get_rate_out(float desired_rate, float scaler, bool 
 	float kp_ff = MAX((gains.P - gains.I * gains.tau) * gains.tau  - gains.D , 0) / eas2tas;
     float k_ff = gains.FF / eas2tas;
 	float delta_time    = (float)dt * 0.001f;
-	
-	// Limit the demanded roll rate
-	if (gains.rmax && desired_rate < -gains.rmax) {
-        desired_rate = - gains.rmax;
-    } else if (gains.rmax && desired_rate > gains.rmax) {
-        desired_rate = gains.rmax;
-    }
-	
     // Get body rate vector (radians/sec)
 	float omega_x = _ahrs.get_gyro().x;
 	
@@ -160,7 +152,7 @@ int32_t AP_RollController::_get_rate_out(float desired_rate, float scaler, bool 
     _pid_info.D = rate_error * gains.D * scaler;
     _pid_info.P = desired_rate * kp_ff * scaler;
     _pid_info.FF = desired_rate * k_ff * scaler;
-    _pid_info.desired = desired_rate;
+    _pid_info.target = desired_rate;
     _pid_info.actual = achieved_rate;
 
 	_last_out = _pid_info.FF + _pid_info.P + _pid_info.D;
@@ -209,6 +201,13 @@ int32_t AP_RollController::get_servo_out(int32_t angle_err, float scaler, bool d
 	
 	// Calculate the desired roll rate (deg/sec) from the angle error
 	float desired_rate = angle_err * 0.01f / gains.tau;
+
+    // Limit the demanded roll rate
+    if (gains.rmax && desired_rate < -gains.rmax) {
+        desired_rate = - gains.rmax;
+    } else if (gains.rmax && desired_rate > gains.rmax) {
+        desired_rate = gains.rmax;
+    }
 
     return _get_rate_out(desired_rate, scaler, disable_integrator);
 }

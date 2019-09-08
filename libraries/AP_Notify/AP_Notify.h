@@ -34,6 +34,7 @@
 #define DISPLAY_OFF     0
 #define DISPLAY_SSD1306 1
 #define DISPLAY_SH1106  2
+#define DISPLAY_SITL 10
 
 class AP_Notify
 {
@@ -134,10 +135,10 @@ public:
     void update(void);
 
     // handle a LED_CONTROL message
-    static void handle_led_control(mavlink_message_t* msg);
+    static void handle_led_control(const mavlink_message_t &msg);
 
     // handle a PLAY_TUNE message
-    static void handle_play_tune(mavlink_message_t* msg);
+    static void handle_play_tune(const mavlink_message_t &msg);
 
     // play a tune string
     static void play_tune(const char *tune);
@@ -156,6 +157,10 @@ public:
     static const struct AP_Param::GroupInfo var_info[];
     uint8_t get_buzz_pin() const  { return _buzzer_pin; }
     uint8_t get_buzz_level() const  { return _buzzer_level; }
+
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+    HAL_Semaphore sf_window_mutex;
+#endif
 
 private:
 

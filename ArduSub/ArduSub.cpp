@@ -39,7 +39,6 @@ const AP_Scheduler::Task Sub::scheduler_tasks[] = {
     SCHED_TASK_CLASS(AP_Notify,           &sub.notify,       update,              50,  90),
     SCHED_TASK(one_hz_loop,            1,    100),
     SCHED_TASK_CLASS(GCS,                 (GCS*)&sub._gcs,   update_receive,     400, 180),
-    SCHED_TASK(gcs_send_heartbeat,     1,    110),
     SCHED_TASK_CLASS(GCS,                 (GCS*)&sub._gcs,   update_send,        400, 550),
 #if MOUNT == ENABLED
     SCHED_TASK_CLASS(AP_Mount,            &sub.camera_mount, update,              50,  75),
@@ -284,9 +283,6 @@ void Sub::one_hz_loop()
 
     // log terrain data
     terrain_logging();
-
-    // init compass location for declination
-    init_compass_location();
 
     // need to set "likely flying" when armed to allow for compass
     // learning to run

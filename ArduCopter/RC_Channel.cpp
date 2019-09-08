@@ -65,13 +65,11 @@ void RC_Channel_Copter::init_aux_function(const aux_func_t ch_option, const aux_
     switch(ch_option) {
     case AUX_FUNC::SIMPLE_MODE:
     case AUX_FUNC::RANGEFINDER:
-    case AUX_FUNC::FENCE:
     case AUX_FUNC::SUPERSIMPLE_MODE:
     case AUX_FUNC::ACRO_TRAINER:
     case AUX_FUNC::PARACHUTE_ENABLE:
     case AUX_FUNC::PARACHUTE_3POS:      // we trust the vehicle will be disarmed so even if switch is in release position the chute will not release
     case AUX_FUNC::RETRACT_MOUNT:
-    case AUX_FUNC::MISSION_RESET:
     case AUX_FUNC::ATTCON_FEEDFWD:
     case AUX_FUNC::ATTCON_ACCEL_LIM:
     case AUX_FUNC::MOTOR_INTERLOCK:
@@ -229,14 +227,6 @@ void RC_Channel_Copter::do_aux_function(const aux_func_t ch_option, const aux_sw
 #endif
             break;
 
-        case AUX_FUNC::MISSION_RESET:
-#if MODE_AUTO_ENABLED == ENABLED
-            if (ch_flag == HIGH) {
-                copter.mode_auto.mission.reset();
-            }
-#endif
-            break;
-
         case AUX_FUNC::AUTO:
 #if MODE_AUTO_ENABLED == ENABLED
             do_aux_function_change_mode(control_mode_t::AUTO, ch_flag);
@@ -250,19 +240,6 @@ void RC_Channel_Copter::do_aux_function(const aux_func_t ch_option, const aux_sw
                 copter.rangefinder_state.enabled = true;
             } else {
                 copter.rangefinder_state.enabled = false;
-            }
-#endif
-            break;
-
-        case AUX_FUNC::FENCE:
-#if AC_FENCE == ENABLED
-            // enable or disable the fence
-            if (ch_flag == HIGH) {
-                copter.fence.enable(true);
-                copter.Log_Write_Event(DATA_FENCE_ENABLE);
-            } else {
-                copter.fence.enable(false);
-                copter.Log_Write_Event(DATA_FENCE_DISABLE);
             }
 #endif
             break;
@@ -420,7 +397,7 @@ void RC_Channel_Copter::do_aux_function(const aux_func_t ch_option, const aux_sw
             // arm or disarm the vehicle
             switch (ch_flag) {
             case HIGH:
-                copter.init_arm_motors(AP_Arming::Method::AUXSWITCH);
+                copter.arming.arm(AP_Arming::Method::AUXSWITCH);
                 // remember that we are using an arming switch, for use by set_throttle_zero_flag
                 copter.ap.armed_with_switch = true;
                 break;
@@ -428,7 +405,7 @@ void RC_Channel_Copter::do_aux_function(const aux_func_t ch_option, const aux_sw
                 // nothing
                 break;
             case LOW:
-                copter.init_disarm_motors();
+                copter.arming.disarm();
                 break;
             }
             break;
@@ -495,16 +472,16 @@ void RC_Channel_Copter::do_aux_function(const aux_func_t ch_option, const aux_sw
             break;
 
 #ifdef USERHOOK_AUXSWITCH
-        case USER_FUNC1:
-            userhook_auxSwitch1(ch_flag);
+        case AUX_FUNC::USER_FUNC1:
+            copter.userhook_auxSwitch1(ch_flag);
             break;
 
-        case USER_FUNC2:
-            userhook_auxSwitch2(ch_flag);
+        case AUX_FUNC::USER_FUNC2:
+            copter.userhook_auxSwitch2(ch_flag);
             break;
 
-        case USER_FUNC3:
-            userhook_auxSwitch3(ch_flag);
+        case AUX_FUNC::USER_FUNC3:
+            copter.userhook_auxSwitch3(ch_flag);
             break;
 #endif
 

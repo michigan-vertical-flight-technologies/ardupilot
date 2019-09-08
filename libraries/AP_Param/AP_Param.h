@@ -63,8 +63,10 @@
 // the var_info is a pointer, allowing for dynamic definition of the var_info tree
 #define AP_PARAM_FLAG_INFO_POINTER  (1<<4)
 
-// ignore the enable parameter on this group
-#define AP_PARAM_FLAG_IGNORE_ENABLE (1<<5)
+// this parameter is visible to GCS via mavlink but should never be
+// set by anything other than the ArduPilot code responsible for its
+// use.
+#define AP_PARAM_FLAG_INTERNAL_USE_ONLY (1<<5)
 
 // keep all flags before the FRAME tags
 
@@ -108,7 +110,6 @@
 // declare a subgroup entry in a group var_info. This is for having another arbitrary object as a member of the parameter list of
 // an object
 #define AP_SUBGROUPINFO(element, name, idx, thisclazz, elclazz) { AP_PARAM_GROUP, idx, name, AP_VAROFFSET(thisclazz, element), { group_info : elclazz::var_info }, AP_PARAM_FLAG_NESTED_OFFSET }
-#define AP_SUBGROUPINFO_FLAGS(element, name, idx, thisclazz, elclazz, flags) { AP_PARAM_GROUP, idx, name, AP_VAROFFSET(thisclazz, element), { group_info : elclazz::var_info }, AP_PARAM_FLAG_NESTED_OFFSET | flags }
 
 // declare a second parameter table for the same object
 #define AP_SUBGROUPEXTENSION(name, idx, clazz, vinfo) { AP_PARAM_GROUP, idx, name, 0, { group_info : clazz::vinfo }, AP_PARAM_FLAG_NESTED_OFFSET }
@@ -251,10 +252,11 @@ public:
     /// If the variable has no name, it cannot be found by this interface.
     ///
     /// @param  name            The full name of the variable to be found.
+    /// @param  flags           If non-null will be filled with parameter flags
     /// @return                 A pointer to the variable, or nullptr if
     ///                         it does not exist.
     ///
-    static AP_Param * find(const char *name, enum ap_var_type *ptype);
+    static AP_Param * find(const char *name, enum ap_var_type *ptype, uint16_t *flags = nullptr);
 
     /// set a default value by name
     ///
@@ -346,6 +348,12 @@ public:
     /// @return                False if any variable failed to load
     ///
     static bool load_all();
+
+    // returns storage space used:
+    static uint16_t storage_used() { return sentinal_offset; }
+
+    // returns storage space :
+    static uint16_t storage_size() { return _storage.size(); }
 
     /// reoad the hal.util defaults file. Called after pointer parameters have been allocated
     ///
@@ -468,6 +476,8 @@ private:
         uint8_t spare;
     };
 
+    static uint16_t sentinal_offset;
+
 /* This header is prepended to a variable stored in EEPROM.
  *  The meaning is as follows:
  *
@@ -501,6 +511,7 @@ private:
     /*
       structure for built-in defaults file that can be modified using apj_tool.py
      */
+#if AP_PARAM_MAX_EMBEDDED_PARAM > 0
     struct PACKED param_defaults_struct {
         char magic_str[8];
         uint8_t param_magic[8];
@@ -509,6 +520,7 @@ private:
         volatile char data[AP_PARAM_MAX_EMBEDDED_PARAM];
     };
     static const param_defaults_struct param_defaults_data;
+#endif
 
 
     static bool                 check_group_info(const struct GroupInfo *group_info, uint16_t *total_size, 
