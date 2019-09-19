@@ -651,14 +651,14 @@ void AP_MotorsMatrix::setup_motors(motor_frame_class frame_class, motor_frame_ty
                     add_motor_raw(AP_MOTORS_MOT_8, -1.0f, -0.333f, AP_MOTORS_MATRIX_YAW_FACTOR_CW,  3);
                     break;
                 case MOTOR_FRAME_TYPE_I:
-                    add_motor_raw(AP_MOTORS_MOT_1, 0.333f, -1.0f, AP_MOTORS_MATRIX_YAW_FACTOR_CCW,  1);
-                    add_motor_raw(AP_MOTORS_MOT_2, -0.333f,  1.0f, AP_MOTORS_MATRIX_YAW_FACTOR_CW,  5);
-                    add_motor_raw(AP_MOTORS_MOT_3,    1.0f, -1.0f, AP_MOTORS_MATRIX_YAW_FACTOR_CCW, 2);
-                    add_motor_raw(AP_MOTORS_MOT_4,  0.333f,  1.0f, AP_MOTORS_MATRIX_YAW_FACTOR_CW, 4);
-                    add_motor_raw(AP_MOTORS_MOT_5, -0.333f, -1.0f, AP_MOTORS_MATRIX_YAW_FACTOR_CW, 8);
-                    add_motor_raw(AP_MOTORS_MOT_6,   -1.0f,  1.0f, AP_MOTORS_MATRIX_YAW_FACTOR_CCW, 6);
-                    add_motor_raw(AP_MOTORS_MOT_7,   -1.0f, -1.0f, AP_MOTORS_MATRIX_YAW_FACTOR_CW,  7);
-                    add_motor_raw(AP_MOTORS_MOT_8,    1.0f,  1.0f, AP_MOTORS_MATRIX_YAW_FACTOR_CCW,  3);
+                    add_motor_raw(AP_MOTORS_MOT_1, -0.333f,  1.0f, AP_MOTORS_MATRIX_YAW_FACTOR_CCW,  1);
+                    add_motor_raw(AP_MOTORS_MOT_2,  0.333f, -1.0f, AP_MOTORS_MATRIX_YAW_FACTOR_CW,  5);
+                    add_motor_raw(AP_MOTORS_MOT_3,   -1.0f,  1.0f, AP_MOTORS_MATRIX_YAW_FACTOR_CCW, 2);
+                    add_motor_raw(AP_MOTORS_MOT_4, -0.333f, -1.0f, AP_MOTORS_MATRIX_YAW_FACTOR_CW, 4);
+                    add_motor_raw(AP_MOTORS_MOT_5,  0.333f,  1.0f, AP_MOTORS_MATRIX_YAW_FACTOR_CW, 8);
+                    add_motor_raw(AP_MOTORS_MOT_6,    1.0f, -1.0f, AP_MOTORS_MATRIX_YAW_FACTOR_CCW, 6);
+                    add_motor_raw(AP_MOTORS_MOT_7,    1.0f,  1.0f, AP_MOTORS_MATRIX_YAW_FACTOR_CW,  7);
+                    add_motor_raw(AP_MOTORS_MOT_8,   -1.0f, -1.0f, AP_MOTORS_MATRIX_YAW_FACTOR_CCW,  3);
                     break;
                 default:
                     // octa frame class does not support this frame type
