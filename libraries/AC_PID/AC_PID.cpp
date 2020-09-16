@@ -236,14 +236,6 @@ float AC_PID::get_ff()
     return _target * _kff;
 }
 
-// todo: remove function when it is no longer used.
-float AC_PID::get_ff(float target)
-{
-    float FF_out = (target * _kff);
-    _pid_info.FF = FF_out;
-    return FF_out;
-}
-
 void AC_PID::reset_I()
 {
     _integrator = 0;
@@ -327,4 +319,11 @@ void AC_PID::set_integrator(float target, float measurement, float i)
 void AC_PID::set_integrator(float error, float i)
 {
     _integrator = constrain_float(i - error * _kp, -_kimax, _kimax);
+    _pid_info.I = _integrator;
+}
+
+void AC_PID::set_integrator(float i)
+{
+    _integrator = constrain_float(i, -_kimax, _kimax);
+    _pid_info.I = _integrator;
 }

@@ -23,6 +23,8 @@ extern const AP_HAL::HAL& hal;
 #define LIGHTWARE_LOST_SIGNAL_TIMEOUT_WRITE_REG 23
 #define LIGHTWARE_TIMEOUT_REG_DESIRED_VALUE 5
 
+#define LIGHTWARE_OUT_OF_RANGE_ADD_CM   100
+
 static const size_t lx20_max_reply_len_bytes = 32;
 static const size_t lx20_max_expected_stream_reply_len_bytes = 14;
 
@@ -56,11 +58,6 @@ static const uint8_t streamSequence[] = { 0 }; // List of 0 based stream Ids tha
 
 static const uint8_t numStreamSequenceIndexes = sizeof(streamSequence)/sizeof(streamSequence[0]);
 
-/*
-   The constructor also initializes the rangefinder. Note that this
-   constructor is not called until detect() returns true, so we
-   already know that we should setup the rangefinder
-*/
 AP_RangeFinder_LightWareI2C::AP_RangeFinder_LightWareI2C(RangeFinder::RangeFinder_State &_state,
         AP_RangeFinder_Params &_params,
         AP_HAL::OwnPtr<AP_HAL::I2CDevice> dev)
@@ -107,34 +104,24 @@ bool AP_RangeFinder_LightWareI2C::write_bytes(uint8_t *write_buf_u8, uint32_t le
 /**
  * Disables "address tagging" in the sf20 response packets.
  */
-bool AP_RangeFinder_LightWareI2C::sf20_disable_address_tagging()
+void AP_RangeFinder_LightWareI2C::sf20_disable_address_tagging()
 {
-    if (!sf20_send_and_expect("#CT,0\r\n", "ct:0")) {
-        return false;
-    }
-    return true;
+    sf20_send_and_expect("#CT,0\r\n", "ct:0");
 }
 
-bool AP_RangeFinder_LightWareI2C::sf20_product_name_check()
-{
-    if (!sf20_send_and_expect("?P\r\n", "p:LW20,")) {
-        return false;
-    }
-    return true;
-}
-
+/*
+  send a native command and check for an expected reply
+ */
 bool AP_RangeFinder_LightWareI2C::sf20_send_and_expect(const char* send_msg, const char* expected_reply)
 {
-    uint8_t rx_bytes[lx20_max_reply_len_bytes + 1];
-    size_t expected_reply_len = strlen(expected_reply);
+    const size_t expected_reply_len = strlen(expected_reply);
+    uint8_t rx_bytes[expected_reply_len + 1];
+    memset(rx_bytes, 0, sizeof(rx_bytes));
 
     if ((expected_reply_len > lx20_max_reply_len_bytes) ||
         (expected_reply_len < 2)) {
         return false;
     }
-
-    rx_bytes[expected_reply_len] = 0;
-    rx_bytes[2] = 0;
 
     if (!write_bytes((uint8_t*)send_msg,
                      strlen(send_msg))) {
@@ -150,11 +137,48 @@ bool AP_RangeFinder_LightWareI2C::sf20_send_and_expect(const char* send_msg, con
         return false;
     }
 
-    if (!_dev->read(rx_bytes, expected_reply_len)) {
-        return false;
+    for (uint8_t i=0; i<10; i++) {
+        if (_dev->read(rx_bytes, expected_reply_len)) {
+            break;
+        }
+        // give a bit of time for the remaining bytes to be available
+        hal.scheduler->delay(1);
     }
 
     return memcmp(rx_bytes, expected_reply, expected_reply_len) == 0;
+}
+
+/*
+  send a native command and fill a reply into a buffer. Used for
+  version string
+ */
+void AP_RangeFinder_LightWareI2C::sf20_get_version(const char* send_msg, const char *reply_prefix, char reply[15])
+{
+    const size_t expected_reply_len = 16;
+    uint8_t rx_bytes[expected_reply_len + 1];
+    memset(rx_bytes, 0, sizeof(rx_bytes));
+
+    if (!write_bytes((uint8_t*)send_msg, strlen(send_msg))) {
+        return;
+    }
+
+    if (!sf20_wait_on_reply(rx_bytes)) {
+        return;
+    }
+
+    if ((rx_bytes[0] != uint8_t(reply_prefix[0])) ||
+        (rx_bytes[1] != uint8_t(reply_prefix[1])) ) {
+        return;
+    }
+
+    for (uint8_t i=0; i<10; i++) {
+        if (_dev->read(rx_bytes, expected_reply_len)) {
+            break;
+        }
+        // give a bit of time for the remaining bytes to be available
+        hal.scheduler->delay(1);
+    }
+    memcpy(reply, &rx_bytes[2], 14);
 }
 
 /* Driver first attempts to initialize the sf20.
@@ -212,21 +236,21 @@ bool AP_RangeFinder_LightWareI2C::legacy_init()
  */
 bool AP_RangeFinder_LightWareI2C::sf20_init()
 {
+    // version strings for reporting
+    char version[15] {};
+
+    sf20_get_version("?P\r\n", "p:", version);
+
+    if (version[0]) {
+        hal.console->printf("SF20 Lidar version %s\n", version);
+    }
+
     // Makes sure that "address tagging" is turned off.
     // Address tagging starts every response with "0x66".
     // Turns off Address Tagging just in case it was previously left on in the non-volatile configuration.
-    if (!sf20_disable_address_tagging()) {
-        return false;
-    }
-
-    if (!sf20_product_name_check()) {
-        return false;
-    }
-
-    // Disconnect the servo.
-    if (!sf20_send_and_expect("#SC,0\r\n", "sc:0")) {
-        return false;
-    }
+    sf20_disable_address_tagging();
+    // Disconnect the servo (if applicable)
+    sf20_send_and_expect("#SC,0\r\n", "sc:0");
 
     // Change the power consumption:
     // 0 = power off
@@ -254,13 +278,15 @@ bool AP_RangeFinder_LightWareI2C::sf20_init()
     }
 #endif
 
-    /* Sets the Laser Encoding to a fixed pattern to assess how well it improves operation with interference from
-     * the Precision Landing infrared beacon.
-     */
-    // Changes the laser encoding pattern: 3 (Random A) [0..4].
+#if 0
+    /*
+      this can be used to change the laser encoding pattern
+      Changes the laser encoding pattern: 3 (Random A) [0..4].
+    */
     if (!sf20_send_and_expect("#LE,3\r\n", "le:3")) {
         return false;
     }
+#endif
 
     // Sets datum offset [-10.00 ... 10.00].
     if (!sf20_send_and_expect("#LO,0.00\r\n", "lo:0.00")) {
@@ -319,8 +345,13 @@ bool AP_RangeFinder_LightWareI2C::legacy_get_reading(uint16_t &reading_cm)
 
     // read the high and low byte distance registers
     if (_dev->transfer(&read_reg, 1, (uint8_t *)&val, sizeof(val))) {
-        // combine results into distance
-        reading_cm = be16toh(val);
+        int16_t signed_val = int16_t(be16toh(val));
+        if (signed_val < 0) {
+            // some lidar firmwares will return 65436 for out of range
+            reading_cm = uint16_t(max_distance_cm() + LIGHTWARE_OUT_OF_RANGE_ADD_CM);
+        } else {
+            reading_cm = uint16_t(signed_val);
+        }
         return true;
     }
     return false;
@@ -376,6 +407,17 @@ bool AP_RangeFinder_LightWareI2C::sf20_parse_stream(uint8_t *stream_buf,
         (*p_num_processed_chars)++;
     }
 
+    /*
+      special case for being beyond maximum range, we receive a message like this:
+      ldl,1:-1.00
+      we will return max distance
+     */
+    if (strncmp((const char *)&stream_buf[*p_num_processed_chars], "-1.00", 5) == 0) {
+        val = uint16_t(max_distance_cm() + LIGHTWARE_OUT_OF_RANGE_ADD_CM);
+        (*p_num_processed_chars) += 5;
+        return true;
+    }
+
     /* Number is always returned in hundredths. So 6.33 is returned as 633. 6.3 is returned as 630.
      * 6 is returned as 600.
      * Extract number in format 6.33 or 123.99 (meters to be converted to centimeters).
@@ -424,7 +466,7 @@ void AP_RangeFinder_LightWareI2C::legacy_timer(void)
         // update range_valid state based on distance measured
         update_status();
     } else {
-        set_status(RangeFinder::RangeFinder_NoData);
+        set_status(RangeFinder::Status::NoData);
     }
 }
 
@@ -434,7 +476,7 @@ void AP_RangeFinder_LightWareI2C::sf20_timer(void)
         // update range_valid state based on distance measured
         update_status();
     } else {
-        set_status(RangeFinder::RangeFinder_NoData);
+        set_status(RangeFinder::Status::NoData);
     }
 }
 

@@ -50,9 +50,6 @@ public:
     float get_d() const;
     float get_ff();
 
-    // todo: remove function when it is no longer used.
-    float get_ff(float target);
-
     // reset_I - reset the integrator
     void reset_I();
 
@@ -101,7 +98,7 @@ public:
     // integrator setting functions
     void set_integrator(float target, float measurement, float i);
     void set_integrator(float error, float i);
-    void set_integrator(float i) { _integrator = constrain_float(i, -_kimax, _kimax); }
+    void set_integrator(float i);
 
     const AP_Logger::PID_Info& get_pid_info(void) const { return _pid_info; }
 

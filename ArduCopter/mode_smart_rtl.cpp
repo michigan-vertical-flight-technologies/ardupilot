@@ -59,6 +59,11 @@ void ModeSmartRTL::run()
     }
 }
 
+bool ModeSmartRTL::is_landing() const
+{
+    return smart_rtl_state == SmartRTL_Land;
+}
+
 void ModeSmartRTL::wait_cleanup_run()
 {
     // hover at current target position
@@ -144,7 +149,7 @@ void ModeSmartRTL::pre_land_position_run()
 // save current position for use by the smart_rtl flight mode
 void ModeSmartRTL::save_position()
 {
-    const bool should_save_position = motors->armed() && (copter.control_mode != SMART_RTL);
+    const bool should_save_position = motors->armed() && (copter.control_mode != Mode::Number::SMART_RTL);
 
     copter.g2.smart_rtl.update(copter.position_ok(), should_save_position);
 }

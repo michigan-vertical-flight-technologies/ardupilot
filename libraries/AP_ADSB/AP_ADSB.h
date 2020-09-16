@@ -21,23 +21,34 @@
   Tom Pittenger, November 2015
 */
 
+#include <AP_HAL/AP_HAL.h>
 #include <AP_Common/AP_Common.h>
 #include <AP_Param/AP_Param.h>
 #include <AP_Common/Location.h>
 #include <GCS_MAVLink/GCS_MAVLink.h>
 
-#include <AP_Buffer/AP_Buffer.h>
+#define ADSB_BITBASK_RF_CAPABILITIES_UAT_IN         (1 << 0)
+#define ADSB_BITBASK_RF_CAPABILITIES_1090ES_IN      (1 << 1)
+
+class AP_ADSB_Backend;
 
 class AP_ADSB {
 public:
-    AP_ADSB()
-    {
-        AP_Param::setup_object_defaults(this, var_info);
-    }
+    friend class AP_ADSB_Backend;
+
+    // constructor
+    AP_ADSB();
 
     /* Do not allow copies */
     AP_ADSB(const AP_ADSB &other) = delete;
     AP_ADSB &operator=(const AP_ADSB&) = delete;
+
+    // get singleton instance
+    static AP_ADSB *get_singleton(void) {
+        return _singleton;
+    }
+
+    const char* GcsHeader = "ADSB: ";
 
     struct adsb_vehicle_t {
         mavlink_adsb_vehicle_t info; // the whole mavlink struct with all the juicy details. sizeof() == 38
@@ -55,11 +66,16 @@ public:
     // send ADSB_VEHICLE mavlink message, usually as a StreamRate
     void send_adsb_vehicle(mavlink_channel_t chan);
 
-    void set_stall_speed_cm(const uint16_t stall_speed_cm) { out_state.cfg.stall_speed_cm = stall_speed_cm; }
+    void set_stall_speed_cm(const uint16_t stall_speed_cm) {
+        if (!out_state.cfg.was_set_externally) {
+            out_state.cfg.stall_speed_cm = MAX(0,stall_speed_cm);
+        }
+    }
+
     void set_max_speed(int16_t max_speed) {
         if (!out_state.cfg.was_set_externally) {
             // convert m/s to knots
-            out_state.cfg.maxAircraftSpeed_knots = (float)max_speed * 1.94384f;
+            out_state.cfg.maxAircraftSpeed_knots = (float)MAX(0,max_speed) * 1.94384f;
         }
     }
 
@@ -76,6 +92,9 @@ public:
     }
     bool next_sample(adsb_vehicle_t &obstacle);
 
+    // handle a adsb_vehicle_t from an external source (used for UAVCAN)
+    void handle_adsb_vehicle(const adsb_vehicle_t &vehicle);
+
     // mavlink message handler
     void handle_message(const mavlink_channel_t chan, const mavlink_message_t &msg);
 
@@ -86,51 +105,8 @@ public:
     void set_special_ICAO_target(const uint32_t new_icao_target) { _special_ICAO_target = (int32_t)new_icao_target; };
     bool is_special_vehicle(uint32_t icao) const { return _special_ICAO_target != 0 && (_special_ICAO_target == (int32_t)icao); }
 
-
-private:
-    // initialize _vehicle_list
-    void init();
-
-    // free _vehicle_list
-    void deinit();
-
-    // compares current vector against vehicle_list to detect threats
-    void determine_furthest_aircraft(void);
-
-    // return index of given vehicle if ICAO_ADDRESS matches. return -1 if no match
-    bool find_index(const adsb_vehicle_t &vehicle, uint16_t *index) const;
-
-    // remove a vehicle from the list
-    void delete_vehicle(const uint16_t index);
-
-    void set_vehicle(const uint16_t index, const adsb_vehicle_t &vehicle);
-
-    // Generates pseudorandom ICAO from gps time, lat, and lon
-    uint32_t genICAO(const Location &loc);
-
-    // set callsign: 8char string (plus null termination) then optionally append last 4 digits of icao
-    void set_callsign(const char* str, const bool append_icao);
-
-    // send static and dynamic data to ADSB transceiver
-    void send_configure(const mavlink_channel_t chan);
-    void send_dynamic_out(const mavlink_channel_t chan);
-
-    // special helpers for uAvionix workarounds
-    uint32_t get_encoded_icao(void);
-    uint8_t get_encoded_callsign_null_char(void);
-
-    // add or update vehicle_list from inbound mavlink msg
-    void handle_vehicle(const mavlink_message_t &msg);
-
-    // handle ADS-B transceiver report for ping2020
-    void handle_transceiver_report(mavlink_channel_t chan, const mavlink_message_t &msg);
-
-    void handle_out_cfg(const mavlink_message_t &msg);
-
-    AP_Int8     _enabled;
-
-    Location  _my_loc;
-
+    // confirm a value is a valid callsign
+    static bool is_valid_callsign(uint16_t octal) WARN_IF_UNUSED;
 
     // ADSB-IN state. Maintains list of external vehicles
     struct {
@@ -152,8 +128,6 @@ private:
     struct {
         uint32_t    last_config_ms; // send once every 10s
         uint32_t    last_report_ms; // send at 5Hz
-        int8_t      chan = -1; // channel that contains an ADS-b Transceiver. -1 means transceiver is not detected
-        uint32_t    chan_last_ms;
         UAVIONIX_ADSB_RF_HEALTH status;     // transceiver status
         bool        is_flying;
         bool        _is_in_auto_mode;
@@ -179,6 +153,43 @@ private:
 
     } out_state;
 
+    AP_Int8     _enabled;
+
+    Location     _my_loc;
+
+private:
+
+    static AP_ADSB *_singleton;
+
+    // initialize driver
+    void hw_init();
+
+    // free/load _vehicle_list
+    void list_init();
+    void list_deinit();
+
+    // compares current vector against vehicle_list to detect threats
+    void determine_furthest_aircraft(void);
+
+    // return index of given vehicle if ICAO_ADDRESS matches. return -1 if no match
+    bool find_index(const adsb_vehicle_t &vehicle, uint16_t *index) const;
+
+    // remove a vehicle from the list
+    void delete_vehicle(const uint16_t index);
+
+    void set_vehicle(const uint16_t index, const adsb_vehicle_t &vehicle);
+
+    // Generates pseudorandom ICAO from gps time, lat, and lon
+    uint32_t genICAO(const Location &loc);
+
+    // set callsign: 8char string (plus null termination) then optionally append last 4 digits of icao
+    void set_callsign(const char* str, const bool append_icao);
+
+    // add or update vehicle_list from inbound mavlink msg
+    void handle_vehicle(const mavlink_message_t &msg);
+
+    // configure ADSB-out transceivers
+    void handle_out_cfg(const mavlink_uavionix_adsb_out_cfg_t &packet);
 
     // index of and distance to furthest vehicle in list
     uint16_t    furthest_vehicle_index;
@@ -189,9 +200,9 @@ private:
     AP_Int32 _special_ICAO_target;
 
     static const uint8_t max_samples = 30;
-    AP_Buffer<adsb_vehicle_t, max_samples> samples;
+    ObjectBuffer<adsb_vehicle_t> samples{max_samples};
 
-    void push_sample(adsb_vehicle_t &vehicle);
+    void push_sample(const adsb_vehicle_t &vehicle);
 
     // logging
     AP_Int8 _log;
@@ -201,4 +212,13 @@ private:
         SPECIAL_ONLY    = 1,
         ALL             = 2
     };
+
+    // reference to backend
+    AP_ADSB_Backend *backend;
+
+
+};
+
+namespace AP {
+    AP_ADSB *ADSB();
 };

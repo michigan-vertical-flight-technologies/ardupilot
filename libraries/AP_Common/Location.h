@@ -73,6 +73,9 @@ public:
 
     // extrapolate latitude/longitude given bearing and distance
     void offset_bearing(float bearing, float distance);
+    
+    // extrapolate latitude/longitude given bearing, pitch and distance
+    void offset_bearing_and_pitch(float bearing, float pitch, float distance);
 
     // longitude_scale - returns the scaler to compensate for
     // shrinking longitude as you move north or south from the equator
@@ -86,6 +89,8 @@ public:
 
     // return bearing in centi-degrees from location to loc2
     int32_t get_bearing_to(const struct Location &loc2) const;
+    // return the bearing in radians
+    float get_bearing(const struct Location &loc2) const { return radians(get_bearing_to(loc2) * 0.01f); } ;
 
     // check if lat and lng match. Ignore altitude and options
     bool same_latlon_as(const Location &loc2) const;
@@ -112,7 +117,7 @@ public:
      */
     float line_path_proportion(const Location &point1, const Location &point2) const;
 
-    bool initialised() const { return (lat !=0 || lng != 0); }
+    bool initialised() const { return (lat !=0 || lng != 0 || alt != 0); }
 
 private:
     static AP_Terrain *_terrain;
